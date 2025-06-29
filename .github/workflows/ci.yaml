@@ -65,24 +65,23 @@ jobs:
     needs: build-and-push
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Helm and Diff plugin
         uses: azure/setup-helm@v3
       - name: Install helm-diff plugin
         run: helm plugin install https://github.com/databus23/helm-diff
 
-      # Configura acceso RO a tu cluster Netcup
       - name: Setup kubeconfig
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.NETCUP_KUBECONFIG_RO }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
 
-      # Actualiza repos de charts
-      - name: Helm repo update
-        run: helm repo update
-
-      # Diff para cada chart importante
-      - name: Add Traefik repository
-        run: helm repo add traefik https://traefik.github.io/charts
+      # Primero registras el repo, luego actualizas el índice
+      - name: Add Traefik repository and update
+        run: |
+          helm repo add traefik https://traefik.github.io/charts
+          helm repo update
 
       - name: Diff Traefik
         run: |

@@ -7,7 +7,7 @@ Notas para gestionar el clúster personal.
 Conecta al VPS con SSH:
 
 ```bash
-ssh root@188.68.42.77
+ssh netcup
 ```
 
 ## hostname

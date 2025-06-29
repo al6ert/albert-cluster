@@ -74,9 +74,7 @@ jobs:
       - name: Setup kubeconfig
         run: |
           mkdir -p ~/.kube
-          cat <<EOF > ~/.kube/config
-  ${{ secrets.NETCUP_KUBECONFIG_RO }}
-  EOF
+          cat <<EOF > ~/.kube/config  ${{ secrets.NETCUP_KUBECONFIG_RO }} EOF
           chmod 600 ~/.kube/config
           export KUBECONFIG=$HOME/.kube/config
 

@@ -80,7 +80,10 @@ jobs:
       - name: Helm repo update
         run: helm repo update
 
-      Diff para cada chart importante
+      # Diff para cada chart importante
+      - name: Add Traefik repository
+        run: helm repo add traefik https://traefik.github.io/charts
+
       - name: Diff Traefik
         run: |
           helm diff upgrade traefik traefik/traefik \

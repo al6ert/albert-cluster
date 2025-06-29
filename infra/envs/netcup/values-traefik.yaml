@@ -1,0 +1,21 @@
+# Traefik values for netcup environment
+ingressRoute:
+  dashboard:
+    enabled: true
+
+# Configure ingress controller
+ingress:
+  enabled: true
+  className: traefik
+
+# Enable metrics
+metrics:
+  prometheus:
+    enabled: true
+
+# Configure logs
+logs:
+  general:
+    level: INFO
+  access:
+    enabled: true 

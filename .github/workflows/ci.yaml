@@ -92,7 +92,8 @@ jobs:
           helm diff upgrade traefik traefik/traefik \
             --namespace traefik \
             -f infra/envs/netcup/values-traefik.yaml \
-            --allow-unreleased
+            --allow-unreleased \
+            --skip-crds
 
       # - name: Diff Web Personal
       #   run: |

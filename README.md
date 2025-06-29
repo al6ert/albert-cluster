@@ -10,6 +10,9 @@ Conecta al VPS con SSH:
 ssh root@188.68.42.77
 ```
 
+## hostname
+albertperez 
+
 La configuración de `kubectl` está en `kubeconfig ~/.kube/config`.
 
 ## Comandos básicos de Kubernetes
@@ -24,6 +27,6 @@ kubectl delete -f archivo.yml
 
 ## Documentación
 
-- [Cluster Setup](docs/cluster-setup.md)
-- [CI/CD](docs/ci-cd.md)
+### local
+- [Minikube local](docs/minikube-local.md)
 

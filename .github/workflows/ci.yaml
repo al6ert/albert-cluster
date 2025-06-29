@@ -49,10 +49,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Build y push de tu app web o n8n (ajusta rutas y tags)
-      - name: Build web image
-        run: |
-          docker build -t ghcr.io/${{ github.repository_owner }}/web:${{ github.sha }} ./path/to/web
-          docker push ghcr.io/${{ github.repository_owner }}/web:${{ github.sha }}
+      # - name: Build web image
+      #   run: |
+      #     docker build -t ghcr.io/${{ github.repository_owner }}/web:${{ github.sha }} ./path/to/web
+      #     docker push ghcr.io/${{ github.repository_owner }}/web:${{ github.sha }}
 
       # Exporta la imagen digest/tag para pasar al siguiente job
       - name: Export IMAGE_TAG

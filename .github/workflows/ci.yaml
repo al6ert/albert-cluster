@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # 1) Comprobar charts
+  helm-lint:
+    name: Helm lint & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Instala Helm
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+
+      # Linter de chart
+      - name: Helm lint
+        run: helm lint infra/charts/**
+
+      # (Opcional) Tests de unidad de chart
+      - name: Helm unittest
+        run: helm plugin install https://github.com/quintush/helm-unittest \
+             && helm unittest infra/charts/**
+
+  # 2) Generar imágenes
+  build-and-push:
+    name: Build & Push Docker images
+    runs-on: ubuntu-latest
+    needs: helm-lint
+    steps:
+      - uses: actions/checkout@v4
+
+      # Login a Docker registry (ej. Docker Hub o GitHub Container Registry)
+      - name: Login to registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build y push de tu app web o n8n (ajusta rutas y tags)
+      - name: Build web image
+        run: |
+          docker build -t ghcr.io/${{ github.repository_owner }}/web:${{ github.sha }} ./path/to/web
+          docker push ghcr.io/${{ github.repository_owner }}/web:${{ github.sha }}
+
+      # Exporta la imagen digest/tag para pasar al siguiente job
+      - name: Export IMAGE_TAG
+        run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_OUTPUT
+
+  # 3) Simular despliegue (diff contra netcup)
+  helm-diff:
+    name: Helm Diff (Netcup preview)
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Helm and Diff plugin
+        uses: azure/setup-helm@v3
+      - name: Install helm-diff plugin
+        run: helm plugin install https://github.com/databus23/helm-diff
+
+      # Configura acceso RO a tu cluster Netcup
+      - name: Setup kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.NETCUP_KUBECONFIG_RO }}" > ~/.kube/config
+
+      # Actualiza repos de charts
+      - name: Helm repo update
+        run: helm repo update
+
+      # Diff para cada chart importante
+      # - name: Diff Traefik
+      #   run: |
+      #     helm diff upgrade traefik traefik/traefik \
+      #       --namespace traefik \
+      #       -f infra/envs/netcup/values-traefik.yaml \
+      #       --allow-unreleased
+
+      # - name: Diff Web Personal
+      #   run: |
+      #     helm diff upgrade web infra/charts/web \
+      #       --namespace web \
+      #       --set image.tag=${{ needs.build-and-push.outputs.IMAGE_TAG }} \
+      #       --values infra/envs/netcup/values-web.yaml \
+      #       --allow-unreleased

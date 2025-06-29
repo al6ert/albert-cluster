@@ -68,8 +68,8 @@ jobs:
 
       - name: Set up Helm and Diff plugin
         uses: azure/setup-helm@v3
-      - name: Install helm-diff plugin
-        run: helm plugin install https://github.com/databus23/helm-diff
+      # - name: Install helm-diff plugin
+      #   run: helm plugin install https://github.com/databus23/helm-diff
 
       - name: Setup kubeconfig
         run: |
@@ -82,18 +82,18 @@ jobs:
         run: kubectl get nodes
 
       # Primero registras el repo, luego actualizas el índice
-      - name: Add Traefik repository and update
-        run: |
-          helm repo add traefik https://traefik.github.io/charts
-          helm repo update
+      # - name: Add Traefik repository and update
+      #   run: |
+      #     helm repo add traefik https://traefik.github.io/charts
+      #     helm repo update
 
-      - name: Diff Traefik
-        run: |
-          helm diff upgrade traefik traefik/traefik \
-            --namespace traefik \
-            -f infra/envs/netcup/values-traefik.yaml \
-            --allow-unreleased \
-            --skip-crds
+      # - name: Diff Traefik
+      #   run: |
+      #     helm diff upgrade traefik traefik/traefik \
+      #       --namespace traefik \
+      #       -f infra/envs/netcup/values-traefik.yaml \
+      #       --allow-unreleased \
+      #       --skip-crds
 
       # - name: Diff Web Personal
       #   run: |

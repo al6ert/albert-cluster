@@ -20,9 +20,9 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v3
 
-      # Linter de chart
-      - name: Helm lint
-        run: helm lint infra/charts/**
+      # Linter de chart (enable when create first chart)
+      # - name: Helm lint
+      #  run: helm lint infra/charts/**
 
       # (Opcional) Tests de unidad de chart
       - name: Helm unittest

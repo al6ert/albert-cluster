@@ -74,8 +74,14 @@ jobs:
       - name: Setup kubeconfig
         run: |
           mkdir -p ~/.kube
-          echo "${{ secrets.NETCUP_KUBECONFIG_RO }}" > ~/.kube/config
+          cat <<EOF > ~/.kube/config
+  ${{ secrets.NETCUP_KUBECONFIG_RO }}
+  EOF
           chmod 600 ~/.kube/config
+          export KUBECONFIG=$HOME/.kube/config
+
+      - name: Verify connectivity
+        run: kubectl get nodes
 
       # Primero registras el repo, luego actualizas el índice
       - name: Add Traefik repository and update

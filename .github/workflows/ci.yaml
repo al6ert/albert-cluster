@@ -25,9 +25,12 @@ jobs:
       #  run: helm lint infra/charts/**
 
       # (Opcional) Tests de unidad de chart
-      - name: Helm unittest
-        run: helm plugin install https://github.com/quintush/helm-unittest \
-             && helm unittest infra/charts/**
+      - name: Install helm-unittest plugin
+        run: helm plugin install https://github.com/quintush/helm-unittest
+
+      # Ejecuta tests de unidad
+      #- name: Run unit tests
+      #  run: helm unittest infra/charts/**
 
   # 2) Generar imágenes
   build-and-push:

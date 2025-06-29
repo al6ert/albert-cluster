@@ -15,7 +15,17 @@ albertperez
 
 La configuración de `kubectl` está en `kubeconfig ~/.kube/config`.
 
+
 ## Comandos básicos de Kubernetes
+
+### local
+```bash
+kubectl config use-context minikube
+```
+### remote
+```bash
+kubectl config use-context netcup
+```
 
 ```bash
 kubectl get nodes            # Ver nodos

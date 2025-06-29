@@ -1,3 +1,4 @@
+.DS_Store
 .env
 
 # Kubernetes artefacts que NO quieres subir (ej. secrets)

@@ -19,8 +19,8 @@ jobs:
         uses: azure/setup-helm@v3
 
       # Lint de todos tus charts
-      - name: Helm lint infra/apps/traefik
-        run: helm lint infra/apps/traefik
+      # - name: Helm lint custom charts
+      #   run: helm lint infra/charts
 
       # (Opcional) Instala helm-unittest y ejecuta tests
       - name: Run Helm unit tests

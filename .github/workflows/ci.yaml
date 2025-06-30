@@ -43,12 +43,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       # Construye y publica tus imágenes, p.ej.:
-      - name: Build & push web image
-        uses: docker/build-push-action@v4
-        with:
-          context: infra/apps/web
-          push: true
-          tags: ghcr.io/al6ert/web:${{ github.sha }}
+      # - name: Build & push web image
+      #   uses: docker/build-push-action@v4
+      #   with:
+      #     context: infra/apps/web
+      #     push: true
+      #     tags: ghcr.io/al6ert/web:${{ github.sha }}
 
   # 3) Preview de Helm (helm-diff)
   helm-diff:

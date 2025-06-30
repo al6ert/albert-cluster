@@ -74,9 +74,9 @@ jobs:
             --allow-unreleased 
 
       # Diff de tu app web
-      - name: Diff Web Personal
-        run: |
-          helm diff upgrade web infra/apps/web \
-            --values infra/envs/netcup/values-web.yaml \
-            --namespace web \
-            --allow-unreleased
+      # - name: Diff Web Personal
+      #   run: |
+      #     helm diff upgrade web infra/apps/web \
+      #       --values infra/envs/netcup/values-web.yaml \
+      #       --namespace web \
+      #       --allow-unreleased

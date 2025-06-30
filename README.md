@@ -28,10 +28,11 @@ kubectl config use-context netcup
 ```
 
 ```bash
-kubectl get nodes            # Ver nodos
-kubectl get pods -A          # Todos los pods y namespaces
-kubectl logs deploy/nginx    # Logs de un Deployment
-kubectl apply -f archivo.yml # Crear/actualizar recursos
+kubectl config current-context  # Ver contexto actual
+kubectl get nodes               # Ver nodos
+kubectl get pods -A             # Todos los pods y namespaces
+kubectl logs deploy/nginx       # Logs de un Deployment
+kubectl apply -f archivo.yml    # Crear/actualizar recursos
 kubectl delete -f archivo.yml
 ```
 

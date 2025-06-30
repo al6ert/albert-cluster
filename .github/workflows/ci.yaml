@@ -57,8 +57,10 @@ jobs:
     needs: build-and-push
     steps:
       - uses: actions/checkout@v4
+
       - name: Install helm-diff plugin
         run: helm plugin install https://github.com/databus23/helm-diff
+
       - name: Add Helm repos
         run: |
           helm repo add traefik https://traefik.github.io/charts

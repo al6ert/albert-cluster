@@ -66,6 +66,8 @@ jobs:
 
       # Diff de Traefik contra el entorno de Netcup
       - name: Diff Traefik
+        env:
+          HELM_DIFF_USE_UPGRADE_DRY_RUN: "true"
         run: |
           helm diff upgrade traefik traefik/traefik \
             --namespace traefik \

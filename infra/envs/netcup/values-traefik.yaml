@@ -1,21 +1,10 @@
-# Traefik values for netcup environment
-ingressRoute:
-  dashboard:
-    enabled: true
+# infra/envs/netcup/traefik-values.yaml
+# Overrides específicos para producción en Netcup
 
-# Configure ingress controller
-ingress:
-  enabled: true
-  className: traefik
+global:
+  # Tu dominio real en producción
+  domain: "albertperez.dev"
 
-# Enable metrics
-metrics:
-  prometheus:
-    enabled: true
-
-# Configure logs
-logs:
-  general:
-    level: INFO
-  access:
-    enabled: true 
+additionalArguments:
+  # Cambiamos el endpoint de ACME a producción
+  - "--certificatesresolvers.le.acme.caserver=https://acme-v02.api.letsencrypt.org/directory"

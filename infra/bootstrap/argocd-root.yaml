@@ -11,7 +11,7 @@ spec:
   source:
     repoURL: https://github.com/al6ert/albert-cluster.git
     targetRevision: main
-    path: infra/apps
+    path: infra/envs
   syncPolicy:
     automated:
       prune: true

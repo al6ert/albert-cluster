@@ -9,30 +9,26 @@ on:
       - main
 
 jobs:
-  # 1) Comprobar charts
+  # 1) Lint de Helm Charts
   helm-lint:
     name: Helm lint & test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # Instala Helm
       - name: Set up Helm
         uses: azure/setup-helm@v3
 
-      # Linter de chart (enable when create first chart)
-      # - name: Helm lint
-      #   run: helm lint infra/charts/**
+      # Lint de todos tus charts (cuando tengas charts locales en infra/charts)
+      # - name: Helm lint custom charts
+      #   run: helm lint infra/charts
 
-      # (Opcional) Tests de unidad de chart
-      - name: Install helm-unittest plugin
-        run: helm plugin install https://github.com/quintush/helm-unittest
-
-      # Ejecuta tests de unidad
+      # (Opcional) Instalar y lanzar helm-unittest
+      # - name: Install helm-unittest plugin
+      #   run: helm plugin install https://github.com/quintush/helm-unittest
       # - name: Run unit tests
       #   run: helm unittest infra/charts/**
 
-  # 2) Generar imágenes
+  # 2) Construcción y push de imágenes Docker
   build-and-push:
     name: Build & Push Docker images
     runs-on: ubuntu-latest
@@ -40,41 +36,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Login a Docker registry (ej. Docker Hub o GitHub Container Registry)
-      - name: Login to registry
+      # Login a tu registry (GHCR en este ejemplo)
+      - name: Log in to registry
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Build y push de tu app web o n8n (ajusta rutas y tags)
-      # - name: Build web image
-      #   run: |
-      #     docker build -t ghcr.io/${{ github.repository_owner }}/web:${{ github.sha }} ./path/to/web
-      #     docker push ghcr.io/${{ github.repository_owner }}/web:${{ github.sha }}
+      # Ejemplo para construir una imagen (descomenta cuando tengas la carpeta web)
+      # - name: Build & push web image
+      #   uses: docker/build-push-action@v4
+      #   with:
+      #     context: infra/apps/web
+      #     push: true
+      #     tags: ghcr.io/${{ github.repository_owner }}/web:${{ github.sha }}
 
-      # Exporta la imagen digest/tag para pasar al siguiente job
-      - name: Export IMAGE_TAG
-        run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_OUTPUT
-
-  # 3) Simular despliegue (diff contra netcup)
-    # 3) Simular despliegue (helm-diff)
+  # 3) Preview de Helm (helm-diff)
   helm-diff:
     name: Helm Diff (Netcup preview)
     runs-on: ubuntu-latest
     needs: build-and-push
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Helm
         uses: azure/setup-helm@v3
 
       - name: Install helm-diff plugin
         run: |
-          # Sólo instala si no está ya instalado
-          helm plugin list | grep diff || helm plugin install https://github.com/databus23/helm-diff
+          # Instala el plugin sólo si aún no está presente
+          helm plugin list | grep -q diff || \
+            helm plugin install https://github.com/databus23/helm-diff
 
       - name: Add Helm repos
         run: |
@@ -84,11 +77,23 @@ jobs:
       # Diff de Traefik contra el entorno de Netcup
       - name: Diff Traefik
         env:
+          # Hace que helm-diff ejecute internamente `helm upgrade --dry-run`
           HELM_DIFF_USE_UPGRADE_DRY_RUN: "true"
         run: |
-          helm diff upgrade traefik traefik/traefik \
+          helm diff upgrade \
+            traefik traefik/traefik \
             --namespace traefik \
             --allow-unreleased \
-            --dry-run client \
             --values infra/apps/traefik/values.yaml \
             --values infra/envs/netcup/traefik-values.yaml
+
+      # Diff de tu app web (descomenta cuando exista el chart/web)
+      # - name: Diff Web Personal
+      #   env:
+      #     HELM_DIFF_USE_UPGRADE_DRY_RUN: "true"
+      #   run: |
+      #     helm diff upgrade \
+      #       web infra/charts/web \
+      #       --namespace web \
+      #       --allow-unreleased \
+      #       --values infra/envs/netcup/values-web.yaml

@@ -71,7 +71,7 @@ jobs:
             --values infra/apps/traefik/values.yaml \
             --values infra/envs/netcup/values-traefik.yaml \
             --namespace traefik \
-            --allow-unreleased \
+            --allow-unreleased 
 
       # Diff de tu app web
       - name: Diff Web Personal

@@ -72,6 +72,7 @@ jobs:
             traefik traefik/traefik \
             --namespace traefik \
             --allow-unreleased \
+            --kube-version v1.30.0 \ 
             --values infra/apps/traefik/values.yaml \
             --values infra/envs/netcup/traefik-values.yaml
 

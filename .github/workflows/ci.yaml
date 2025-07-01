@@ -33,6 +33,7 @@ jobs:
     needs: helm-lint
     steps:
       - uses: actions/checkout@v4
+
       # Login a tu registry (GHCR en este ejemplo)
       - name: Log in to registry
         uses: docker/login-action@v2
@@ -40,6 +41,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       # Ejemplo de build (descomenta cuando exista la carpeta web)
       # - name: Build & push web image
       #   uses: docker/build-push-action@v4
@@ -48,18 +50,38 @@ jobs:
       #     push: true
       #     tags: ghcr.io/${{ github.repository_owner }}/web:${{ github.sha }}
 
-  # 3) Diff de Helm contra Netcup (sin clúster)
+  # 3) Diff de Helm contra Netcup (usa kubeconfig de Netcup)
   helm-diff:
     name: Helm Diff (Netcup preview)
     runs-on: ubuntu-latest
     needs: build-and-push
     steps:
       - uses: actions/checkout@v4
+
+      # Set up Helm
       - name: Set up Helm
         uses: azure/setup-helm@v3
+
+      # Configurar kubeconfig desde tu secret NETCUP_KUBECONFIG_RO
+      - name: Setup kubeconfig for Netcup
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.NETCUP_KUBECONFIG_RO }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+        env:
+          KUBECONFIG: ${{ github.workspace }}/.kube/config
+
+      # Verificar conexión (opcional)
+      - name: Verify kubectl connectivity
+        run: kubectl get nodes
+
+      # Instalar helm-diff plugin
       - name: Install helm-diff plugin
         run: |
+          helm plugin list | grep -q diff || \
           helm plugin install https://github.com/databus23/helm-diff
+
+      # Añadir repositorios Helm
       - name: Add Helm repos
         run: |
           helm repo add traefik https://traefik.github.io/charts
@@ -72,7 +94,6 @@ jobs:
             traefik traefik/traefik \
             --namespace traefik \
             --allow-unreleased \
-            --kube-version v1.30.0 \ 
             --values infra/apps/traefik/values.yaml \
             --values infra/envs/netcup/traefik-values.yaml
 

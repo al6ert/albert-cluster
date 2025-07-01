@@ -35,7 +35,20 @@ eval $(minikube docker-env)
 
 Sin esto, al hacer docker build tu imagen se queda en Docker Desktop y Kubernetes no la encuentra (tendrías que “push” a un registry externo).
 
-### 3. Construir y desplegar tu app
+### 3. Instalar Argo CD
+
+Aplica los manifiestos de `infra/bootstrap` para desplegar Argo CD y la
+aplicación raíz:
+
+```bash
+kubectl apply -f infra/bootstrap/argocd.yaml
+kubectl apply -f infra/bootstrap/argocd-root.yaml
+```
+
+Esto instalará Traefik y sus CRDs, entre otras aplicaciones definidas en
+`infra/apps`.
+
+### 4. Construir y desplegar tu app
 
 ```bash
 # 1. Construye la imagen DENTRO de Minikube

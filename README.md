@@ -1,6 +1,29 @@
 # Albert Cluster
 
-Notas para gestionar el clúster personal.
+Repositorio GitOps para gestionar mi clúster personal con **Argo CD**.
+Toda la configuración de Kubernetes vive en este repositorio.
+
+## Puesta en marcha rápida
+
+Instala Argo CD y la aplicación raíz que sincronizará `infra/apps`:
+
+```bash
+kubectl apply -f infra/bootstrap/argocd.yaml
+kubectl apply -f infra/bootstrap/argocd-root.yaml
+```
+
+Tras ello Argo CD aplicará automáticamente los charts y manifiestos
+definidos en `infra/apps` (por ejemplo Traefik y sus CRDs).
+
+## Estructura del repositorio
+
+- `infra/bootstrap` contiene los manifiestos para instalar Argo CD y la
+  aplicación raíz que apunta a `infra/apps`.
+- `infra/apps` es la carpeta que Argo CD sincroniza; aquí se definen las
+  aplicaciones y charts del clúster.
+- `infra/envs` guarda valores específicos por entorno (p.ej. `minikube` y
+  `netcup`).
+- `docs` almacena la documentación de soporte.
 
 ## Acceso
 

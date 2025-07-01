@@ -1,0 +1,12 @@
+# infra/apps/n8n/n8n-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n
+  namespace: n8n
+spec:
+  ports:
+  - port: 80
+    targetPort: 5678
+  selector:
+    app: n8n

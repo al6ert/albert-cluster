@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - crds/traefik-crds.yaml
+  - argocd.yaml
+  - argocd-root.yaml
+patchesStrategicMerge:
+  - envs/netcup/argocd-values.yaml     # se sustituirá según tu pipeline

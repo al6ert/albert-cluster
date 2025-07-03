@@ -20,7 +20,7 @@ Kustomization File para Argo CD
 Uso de Hhelmfile para gestionar los charts:
 
 ```bash
-helmfile -f infra/apps/traefik/helmfile.yaml apply
+helmfile -f infra/apps/helmfile.yaml apply
 ```
 
 ## Estructura del repositorio

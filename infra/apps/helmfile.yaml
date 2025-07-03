@@ -1,10 +1,10 @@
 environments:
   minikube:
     values:
-      - ../envs/minikube/values.yaml   # o traefik-values.yaml si mantienes uno por app
+      - ../envs/minikube/trafik-values.yaml  
   netcup:
     values:
-      - ../envs/netcup/values.yaml
+      - ../envs/netcup/traefik-values.yaml
 
 repositories:
   - name: traefik

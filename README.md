@@ -5,7 +5,7 @@ Toda la configuración de Kubernetes vive en este repositorio.
 
 ## Puesta en marcha rápida
 
-Instala Argo CD y la aplicación raíz que sincronizará `infra/apps`:
+Instala Argo CD y la aplicación raíz que sincronizará `infra/bootstrap`:
 
 ```bash
 kubectl apply -f infra/bootstrap/argocd.yaml
@@ -13,7 +13,15 @@ kubectl apply -f infra/bootstrap/argocd-root.yaml
 ```
 
 Tras ello Argo CD aplicará automáticamente los charts y manifiestos
-definidos en `infra/apps` (por ejemplo Traefik y sus CRDs).
+definidos en `infra/bootstrap` (por ejemplo Traefik y sus CRDs). 
+
+Kustomization File para Argo CD
+
+Uso de Hhelmfile para gestionar los charts:
+
+```bash
+helmfile -f infra/apps/traefik/helmfile.yaml apply
+```
 
 ## Estructura del repositorio
 

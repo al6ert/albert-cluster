@@ -1,0 +1,18 @@
+environments:
+  minikube:
+    values:
+      - ../envs/minikube/values.yaml   # o traefik-values.yaml si mantienes uno por app
+  netcup:
+    values:
+      - ../envs/netcup/values.yaml
+
+repositories:
+  - name: traefik
+    url: https://traefik.github.io/charts
+
+releases:
+  - name: traefik
+    namespace: traefik
+    chart: traefik/traefik
+    values:
+      - traefik/values.yaml  

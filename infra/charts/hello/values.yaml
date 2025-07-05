@@ -1,0 +1,44 @@
+# Default values for hello chart
+replicaCount: 1
+
+image:
+  repository: hashicorp/http-echo
+  tag: ""
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5678
+
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+  hosts:
+    - host: hello.127.0.0.1.nip.io
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: hello-tls
+      hosts:
+        - hello.127.0.0.1.nip.io
+
+# Traefik IngressRoute configuration
+traefik:
+  ingressRoute:
+    enabled: true
+    entryPoints:
+      - web
+      - websecure
+    certResolver: le
+  
+  httpIngressRoute:
+    enabled: false
+    entryPoints:
+      - web
+
+# Application specific settings
+app:
+  message: "¡Hola desde Minikube!" 

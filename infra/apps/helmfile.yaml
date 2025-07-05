@@ -1,18 +1,28 @@
 environments:
   minikube:
     values:
-      - ../envs/minikube/traefik-values.yaml  
+      - ../envs/minikube/traefik-values.yaml
+      - ../envs/minikube/hello-values.yaml
   netcup:
     values:
       - ../envs/netcup/traefik-values.yaml
+      - ../envs/netcup/hello-values.yaml
 
+---
 repositories:
   - name: traefik
     url: https://traefik.github.io/charts
 
+---
 releases:
   - name: traefik
     namespace: traefik
     chart: traefik/traefik
     values:
-      - traefik/values.yaml  
+      - traefik/values.yaml
+  
+  - name: hello
+    namespace: traefik
+    chart: ../charts/hello
+    values:
+      - ../charts/hello/values.yaml  

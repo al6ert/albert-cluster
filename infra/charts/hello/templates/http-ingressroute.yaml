@@ -1,0 +1,18 @@
+{{- if .Values.traefik.httpIngressRoute.enabled }}
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: {{ include "hello.fullname" . }}-http
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hello.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    {{- toYaml .Values.traefik.httpIngressRoute.entryPoints | nindent 4 }}
+  routes:
+    - match: Host(`{{ (index .Values.ingress.hosts 0).host }}`)
+      kind: Rule
+      services:
+        - name: {{ include "hello.fullname" . }}
+          port: {{ .Values.service.port }}
+{{- end }} 

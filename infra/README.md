@@ -14,12 +14,11 @@ Esta carpeta define todo lo necesario para desplegar el clúster mediante
 
 ## Bootstrap
 
-> **Importante:** Primero debes aplicar los CRDs y el namespace antes del resto de recursos, o los manifiestos de ArgoCD y Kustomize fallarán.
+Para iniciar un clúster desde cero:
 
 ```bash
-kubectl apply -f infra/bootstrap/crds/
-sleep 10  # Espera a que los CRDs estén disponibles
-kubectl apply -k infra/bootstrap/
+kubectl apply -f infra/bootstrap/argocd.yaml
+kubectl apply -f infra/bootstrap/argocd-root.yaml
 ```
 
 Después puedes acceder a la interfaz web de Argo CD o usar `argocd` CLI para

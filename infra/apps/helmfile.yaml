@@ -1,7 +1,7 @@
 environments:
   minikube:
     values:
-      - ../envs/minikube/trafik-values.yaml  
+      - ../envs/minikube/traefik-values.yaml  
   netcup:
     values:
       - ../envs/netcup/traefik-values.yaml

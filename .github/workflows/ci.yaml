@@ -42,13 +42,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Ejemplo de build (descomenta cuando exista la carpeta web)
-      # - name: Build & push web image
-      #   uses: docker/build-push-action@v4
-      #   with:
-      #     context: infra/apps/web
-      #     push: true
-      #     tags: ghcr.io/${{ github.repository_owner }}/web:${{ github.sha }}
 
   # 3) Diff de Helm contra Netcup (usa kubeconfig de Netcup)
   helm-diff:
@@ -71,38 +64,39 @@ jobs:
         env:
           KUBECONFIG: ${{ github.workspace }}/.kube/config
 
-      # Verificar conexión (opcional)
+      # Verificar conexión y validar CRDs
       - name: Verify kubectl connectivity
         run: kubectl get nodes
 
-      # Instalar helm-diff plugin
-      - name: Install helm-diff plugin
+      # Validar CRDs antes del diff
+      - name: Validate CRDs
         run: |
-          helm plugin list | grep -q diff || \
-          helm plugin install https://github.com/databus23/helm-diff
+          kubectl apply --dry-run=client -f infra/bootstrap/crds/
+          echo "✅ CRDs validation passed"
 
-      # Añadir repositorios Helm
+      # Instalar Helmfile
+      - name: Install Helmfile
+        run: |
+          curl -L https://github.com/helmfile/helmfile/releases/latest/download/helmfile_linux_amd64 > /usr/local/bin/helmfile
+          chmod +x /usr/local/bin/helmfile
+
+      # Añadir repositorios Helm (Helmfile los maneja automáticamente, pero por si acaso)
       - name: Add Helm repos
         run: |
           helm repo add traefik https://traefik.github.io/charts
           helm repo update
 
-
-      # Diff de Traefik contra los valores de producción Netcup
-      - name: Diff Traefik
+      # Validar templates de Helmfile
+      - name: Validate Helmfile templates
         run: |
-          helm diff upgrade \
-            traefik traefik/traefik \
-            --namespace traefik \
-            --allow-unreleased \
-            --values infra/apps/traefik/values.yaml \
-            --values infra/envs/netcup/traefik-values.yaml
+          cd infra/apps
+          helmfile template --environment netcup | kubectl apply --dry-run=client -f -
+          echo "✅ Helmfile templates validation passed"
 
-      # Diff de tu app web (descomentar cuando exista)
-      # - name: Diff Web Personal
-      #   run: |
-      #     helm diff upgrade \
-      #       web infra/charts/web \
-      #       --namespace web \
-      #       --allow-unreleased \
-      #       --values infra/envs/netcup/values-web.yaml
+      # Diff usando Helmfile para consistencia con la configuración local
+      - name: Helmfile diff
+        run: |
+          cd infra/apps
+          helmfile diff --environment netcup --detailed-exitcode
+
+   

@@ -115,16 +115,14 @@ jobs:
       
       - name: Bootstrap Argo CD
         run: |
-          kubectl apply -f infra/bootstrap/
-          # espera a que los pods levanten
+          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f infra/bootstrap/argocd.yaml
+          kubectl wait --for=condition=established --timeout=60s crd/applications.argoproj.io
+          kubectl apply -f infra/bootstrap/argocd-root.yaml
           kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
 
       - name: Run integration tests
         run: |
-          # Apply bootstrap manifests
-          kubectl apply -f infra/bootstrap/argocd.yaml
-          kubectl apply -f infra/bootstrap/argocd-root.yaml
-          
           # Wait for Argo CD to sync
           sleep 30
           

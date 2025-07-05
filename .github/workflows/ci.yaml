@@ -40,7 +40,8 @@ jobs:
       - name: Validate Kustomize
         run: |
           if [ -f "infra/bootstrap/kustomization.yaml" ]; then
-            kubectl kustomize infra/bootstrap/ --dry-run
+            kubectl kustomize infra/bootstrap/ | kubectl apply --dry-run=client -f -
+            echo "✅ Kustomize validation passed"
           fi
 
   # 2) Security scanning

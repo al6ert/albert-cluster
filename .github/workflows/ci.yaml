@@ -12,6 +12,11 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+permissions:
+  contents: read
+  security-events: write
+  packages: write
+
 jobs:
   # 1) Validación de sintaxis y linting
   validate:
@@ -73,7 +78,7 @@ jobs:
       
       # Upload security results
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'

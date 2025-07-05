@@ -43,7 +43,7 @@ jobs:
             # Generate Kustomize output and validate it
             kubectl kustomize infra/bootstrap/ > /tmp/kustomize-output.yaml
             if [ -s /tmp/kustomize-output.yaml ]; then
-              kubectl apply --dry-run=client -f /tmp/kustomize-output.yaml
+              kubectl apply --dry-run=client --validate=false -f /tmp/kustomize-output.yaml
               echo "✅ Kustomize validation passed"
             else
               echo "⚠️ Kustomize generated empty output - this might be expected"

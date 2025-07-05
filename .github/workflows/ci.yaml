@@ -115,7 +115,13 @@ jobs:
       
       - name: Bootstrap Argo CD
         run: |
-          kubectl apply -f infra/bootstrap/
+          # 1. Aplica primero los CRDs
+          kubectl apply -f infra/bootstrap/crds/
+          # 2. Espera a que los CRDs estén disponibles
+          echo "Esperando 10 segundos a que los CRDs estén listos..."
+          sleep 10
+          # 3. Aplica el resto de los recursos usando kustomize
+          kubectl apply -k infra/bootstrap/
           # espera a que los pods levanten
           kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
 

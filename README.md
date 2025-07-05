@@ -91,9 +91,12 @@ albert-cluster/
 
 ### Step 1: Install Argo CD
 
+> **Important:** You must apply the CRDs and namespace before the rest of the resources, otherwise Argo CD and Kustomize resources will fail to install.
+
 ```bash
-kubectl apply -f infra/bootstrap/argocd.yaml
-kubectl apply -f infra/bootstrap/argocd-root.yaml
+kubectl apply -f infra/bootstrap/crds/
+sleep 10  # Wait for CRDs to be established
+kubectl apply -k infra/bootstrap/
 ```
 
 ### Step 2: Deploy Applications

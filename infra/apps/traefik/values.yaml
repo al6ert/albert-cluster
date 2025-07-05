@@ -24,15 +24,15 @@ ports:
     address: ":443"
     tls:
       enabled: true
-      certResolver: ""
+      certResolver: "le"  # Corregido: ahora usa Let's Encrypt
       # Se agrega el secret TLS personalizado
       secretName: traefik-local-tls
 
-# ACME (Let's Encrypt) en staging
+# ACME (Let's Encrypt) en staging por defecto (se sobreescribe en producción)
 additionalArguments:
   - "--certificatesresolvers.le.acme.httpchallenge=true"
   - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-  - "--certificatesresolvers.le.acme.email=tu@correo.com"
+  - "--certificatesresolvers.le.acme.email=tu-email-real@dominio.com"  # Actualizar placeholder
   - "--certificatesresolvers.le.acme.storage=/data/acme.json"
   - "--certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
 

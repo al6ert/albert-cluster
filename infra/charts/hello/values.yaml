@@ -6,6 +6,15 @@ image:
   tag: ""
   pullPolicy: IfNotPresent
 
+# Configuración de recursos
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
 service:
   type: ClusterIP
   port: 80

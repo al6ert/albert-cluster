@@ -4,5 +4,6 @@ resources:
   - crds/traefik-crds.yaml
   - argocd.yaml
   - argocd-root.yaml
+  - ../apps  # Incluir las ArgoCD Applications de apps
 patchesStrategicMerge:
   - envs/netcup/argocd-values.yaml     # se sustituirá según tu pipeline

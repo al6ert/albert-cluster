@@ -78,13 +78,7 @@ jobs:
       - name: Install Helmfile
         run: |
           curl -L https://github.com/helmfile/helmfile/releases/latest/download/helmfile_linux_amd64 > /usr/local/bin/helmfile
-          chmod +x /usr/local/bin/helmfile
-
-      # Añadir repositorios Helm (Helmfile los maneja automáticamente, pero por si acaso)
-      - name: Add Helm repos
-        run: |
-          helm repo add traefik https://traefik.github.io/charts
-          helm repo update
+          chmod +x /usr/local/bin/helmfile      
 
       # Validar templates de Helmfile
       - name: Validate Helmfile templates

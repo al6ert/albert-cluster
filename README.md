@@ -98,4 +98,5 @@ kubectl delete -f archivo.yml
 
 ### local
 - [Minikube local](docs/minikube-local.md)
+- [Renovar certificados TLS con mkcert](docs/renovar-certificados-mkcert.md)
 

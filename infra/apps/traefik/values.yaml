@@ -24,6 +24,9 @@ ports:
     address: ":443"
     tls:
       enabled: true
+      certResolver: ""
+      # Se agrega el secret TLS personalizado
+      secretName: traefik-local-tls
 
 # ACME (Let's Encrypt) en staging
 additionalArguments:

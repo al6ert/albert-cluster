@@ -4,3 +4,4 @@
 # Kubernetes artefacts que NO quieres subir (ej. secrets)
 *.enc.yaml
 *-secret.yaml
+.certs/

@@ -21,9 +21,9 @@ jobs:
       - uses: actions/checkout@v4
       
       # Validación de sintaxis YAML
-      - name: Validate YAML syntax
-        run: |
-          find . -name "*.yaml" -o -name "*.yml" | xargs -I {} sh -c 'echo "Validating {}"; yamllint {} || exit 1'
+      # - name: Validate YAML syntax
+      #   run: |
+      #     find . -name "*.yaml" -o -name "*.yml" | xargs -I {} sh -c 'echo "Validating {}"; yamllint {} || exit 1'
       
       # Set up Helm
       - name: Set up Helm

@@ -113,12 +113,12 @@ jobs:
         with:
           node_image: kindest/node:v1.28.0
       
-      - name: Install Argo CD
+      - name: Bootstrap Argo CD
         run: |
-          kubectl create namespace argocd
-          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          kubectl apply -f infra/bootstrap/
+          # espera a que los pods levanten
           kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
-      
+
       - name: Run integration tests
         run: |
           # Apply bootstrap manifests

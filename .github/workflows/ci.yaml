@@ -147,8 +147,17 @@ jobs:
       # Install Helmfile
       - name: Install Helmfile
         run: |
-          curl -L https://github.com/helmfile/helmfile/releases/latest/download/helmfile_linux_amd64 > /usr/local/bin/helmfile
+          # Get the latest version
+          HELMFILE_VERSION=$(curl -s https://api.github.com/repos/helmfile/helmfile/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "Installing Helmfile version: $HELMFILE_VERSION"
+          
+          # Download and install
+          curl -L "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION#v}_linux_amd64.tar.gz" | tar -xz
+          sudo mv helmfile /usr/local/bin/
           chmod +x /usr/local/bin/helmfile
+          
+          # Verify installation
+          helmfile --version
       
       # Setup kubeconfig for production
       - name: Setup kubeconfig for production
@@ -177,6 +186,11 @@ jobs:
       - name: Validate Helmfile templates
         run: |
           cd infra/apps
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory:"
+          ls -la
+          
+          echo "Validating Helmfile templates..."
           helmfile template --environment netcup | kubectl apply --dry-run=client -f -
           echo "✅ Helmfile templates validation passed"
       
@@ -184,6 +198,15 @@ jobs:
       - name: Deploy to production
         run: |
           cd infra/apps
+          echo "Starting deployment to production..."
+          echo "Current directory: $(pwd)"
+          echo "Helmfile version: $(helmfile --version)"
+          
+          # Show what will be deployed
+          echo "Helmfile diff:"
+          helmfile diff --environment netcup || echo "No differences found or diff failed"
+          
+          # Deploy
           helmfile apply --environment netcup
       
       # Verify deployment

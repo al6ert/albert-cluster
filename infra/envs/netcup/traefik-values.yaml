@@ -7,8 +7,8 @@ global:
 additionalArguments:
   - "--certificatesresolvers.le.acme.httpchallenge=true"
   - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-  - "--certificatesresolvers.le.acme.email=tu-email-real@dominio.com"  # Cambiar por tu email real
-  - "--certificatesresolvers.le.acme.storage=/data/acme.json"
+  - "--certificatesresolvers.le.acme.email=albert@albertperez.dev"  # Email real para Let's Encrypt
+  - "--certificatesresolvers.le.acme.storage=/tmp/acme.json"
   - "--certificatesresolvers.le.acme.caserver=https://acme-v02.api.letsencrypt.org/directory"  # Producción, no staging
 
 ports:

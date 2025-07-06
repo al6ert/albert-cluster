@@ -16,10 +16,11 @@ providers:
 ports:
   web:
     address: ":80"
-    redirections:
-      entryPoint:
-        to: websecure
-        scheme: https
+    # Habilitado para ACME HTTP challenge
+    # redirections:
+    #   entryPoint:
+    #     to: websecure
+    #     scheme: https
   websecure:
     address: ":443"
     tls:
@@ -41,8 +42,11 @@ ingressRoute:
   dashboard:
     enabled: true
 
-# Persistencia ACME
+# Persistencia ACME (deshabilitada temporalmente para evitar problemas de permisos)
 persistence:
-  enabled: true
-  path: /data
-  size: 128Mi
+  enabled: false
+  # path: /data
+  # size: 128Mi
+
+# Configuración de permisos para ACME
+# Nota: Los permisos se manejarán automáticamente por Traefik

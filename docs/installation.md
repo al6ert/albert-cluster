@@ -57,6 +57,13 @@ Traefik ingress.
 ```bash
 kubectl config use-context minikube
 ```
+### Start Minikube
+
+Ensure you have Minikube installed and start it with the following command:
+```bash
+minikube start
+sudo minikube tunnel
+```
 
 ### Production (Netcup)
 

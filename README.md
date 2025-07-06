@@ -102,6 +102,25 @@ kubectl apply -f infra/bootstrap/argocd-root.yaml
 helmfile -f infra/apps/helmfile.yaml apply
 ```
 
+### Step 3: Verify Argo CD Access
+
+Ensure that the Argo CD UI is reachable. If you expose Traefik via a
+`LoadBalancer` service, find the external IP and confirm your DNS record points
+to it:
+
+```bash
+kubectl get svc -n kube-system traefik
+```
+
+If Argo CD itself runs with a `LoadBalancer`, check its service instead:
+
+```bash
+kubectl get svc -n argocd argocd-server
+```
+
+Initial access requires either a `LoadBalancer` service or a working Traefik
+ingress so that the Argo CD endpoint is reachable through your firewall.
+
 For detailed installation instructions, see the [Installation Guide](docs/installation.md).
 
 ## 🔄 GitOps Architecture

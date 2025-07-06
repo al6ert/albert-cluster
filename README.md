@@ -125,12 +125,14 @@ For detailed installation instructions, see the [Installation Guide](docs/instal
 
 ## 🔄 GitOps Architecture
 
-This repository implements GitOps principles where:
+Este repositorio implementa GitOps puro:
 
-- **Git is the single source of truth** for all configurations
-- **Argo CD** continuously monitors the repository and syncs changes
-- **Declarative configuration** is used throughout
-- **Infrastructure as Code** with Kubernetes manifests and Helm charts
+- **Git es la única fuente de verdad** para toda la configuración.
+- **Argo CD** monitoriza continuamente el repositorio y sincroniza los cambios automáticamente.
+- **No se fuerza la sincronización manual** desde el pipeline CI/CD: ArgoCD gestiona todo el ciclo de vida de los recursos.
+- **Toda la infraestructura y aplicaciones** se declaran como código y se gestionan por ArgoCD.
+
+> **Nota:** El pipeline CI/CD nunca ejecuta comandos de sincronización ni refresh manual sobre ArgoCD. Todo el flujo es 100% GitOps: cualquier cambio en el repositorio se refleja automáticamente en el clúster mediante la reconciliación de ArgoCD.
 
 ### Repository Organization
 
@@ -143,27 +145,23 @@ For detailed GitOps information, see [GitOps and CI/CD Pipeline](docs/gitops-pip
 
 ## ⚡ CI/CD Pipeline
 
-The project includes a comprehensive CI/CD pipeline with automated:
+El pipeline CI/CD sigue las mejores prácticas GitOps:
 
-- **Validation & Linting** - YAML syntax and Helm chart validation
-- **Security Scanning** - Vulnerability scanning with Trivy
-- **Testing** - Unit and integration tests with kind
-- **Deployment** - Automatic deployment to staging and production
-- **Monitoring** - Continuous cluster monitoring
-- **Notifications** - Status notifications
+- **Validación & Linting:** Verifica sintaxis y calidad de los manifests y charts.
+- **Escaneo de seguridad:** Analiza vulnerabilidades antes de desplegar.
+- **Testing:** Ejecuta tests unitarios y de integración en un clúster efímero.
+- **Despliegue GitOps:** Solo aplica manifests y confía en la reconciliación automática de ArgoCD. No se fuerza la sincronización ni el refresh manual.
+- **Verificación post-deploy:** Solo verifica el estado de salud de las aplicaciones, sin intervenir en la reconciliación.
 
 ### Pipeline Stages
 
 1. **Validate & Lint** - Syntax validation and linting
 2. **Security Scan** - Vulnerability scanning
-3. **Build & Push** - Docker image building
-4. **Testing** - Unit and integration tests
-5. **Deploy Staging** - Staging environment deployment
-6. **Deploy Production** - Production environment deployment
-7. **Verify** - Post-deployment verification
-8. **Notify** - Status notifications
+3. **Testing** - Unit and integration tests
+4. **GitOps Deploy** - Manifests validation and push; ArgoCD auto-syncs changes
+5. **Verify** - Post-deployment health checks
 
-For detailed pipeline information, see [GitOps and CI/CD Pipeline](docs/gitops-pipeline.md).
+> **Importante:** El pipeline nunca fuerza la sincronización de ArgoCD. Todo el ciclo de vida de los recursos está gestionado por ArgoCD siguiendo el modelo GitOps puro.
 
 ## 📚 Documentation
 

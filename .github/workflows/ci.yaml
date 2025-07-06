@@ -153,19 +153,7 @@ jobs:
           kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-server
           echo "✅ ArgoCD está funcionando - la sincronización será automática"
 
-      # Forzar sincronización elegante usando kubectl
-      - name: Force ArgoCD sync via kubectl
-        run: |
-          # Forzar reconciliación de las aplicaciones
-          kubectl patch application traefik -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
-          kubectl patch application hello -n argocd -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}' --type=merge
-          
-          # Esperar a que las aplicaciones se sincronicen
-          echo "⏱ Esperando sincronización de aplicaciones..."
-          kubectl wait --for=jsonpath='{.status.sync.status}=Synced' application/traefik -n argocd --timeout=300s || echo "⚠️ Traefik sync timeout"
-          kubectl wait --for=jsonpath='{.status.sync.status}=Synced' application/hello -n argocd --timeout=300s || echo "⚠️ Hello sync timeout"
-          
-          echo "🔄 Aplicaciones sincronizadas por ArgoCD"
+      # Verificar que ArgoCD está listo para sincronización automática
 
 # ─────────────────────────────────────────────
 # 5) Verificación post-deploy

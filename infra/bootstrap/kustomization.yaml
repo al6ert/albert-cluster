@@ -2,7 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - crds/traefik-crds.yaml
-  - rbac/gh-actions-sa.yml        
+  - rbac/gh-actions.yml        
   - argocd.yaml
   - argocd-root.yaml
   - ../apps  # Incluir las ArgoCD Applications de apps

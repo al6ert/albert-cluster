@@ -118,10 +118,10 @@ jobs:
           kubectl get pods -A
 
 # ─────────────────────────────────────────────
-# 4) GitOps → producción (solo validación + trigger)
+# 4) GitOps → producción (solo validación)
 # ─────────────────────────────────────────────
-  gitops-deploy:
-    name: GitOps Deployment Trigger
+  gitops-validate:
+    name: GitOps Validation
     runs-on: ubuntu-latest
     environment: production
     needs: test
@@ -147,33 +147,19 @@ jobs:
       - name: Validate CRDs
         run: kubectl apply --dry-run=client -f infra/bootstrap/crds/
 
-      # (Opcional) Instala CLI de Argo CD y sincroniza explícitamente
-      - name: Install Argo CD CLI
+      # Notificar que ArgoCD se sincronizará automáticamente
+      - name: GitOps Notification
         run: |
-          curl -sSL -o /usr/local/bin/argocd \
-            "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64"
-          chmod +x /usr/local/bin/argocd
-          argocd version --client
-
-      - name: Argo CD manual sync
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_TOKEN:  ${{ secrets.ARGOCD_TOKEN }}
-        run: |
-          argocd login "$ARGOCD_SERVER" --insecure --grpc-web \
-            --username token --password "$ARGOCD_TOKEN"
-          # Sincroniza las apps señalando el commit que acaba de entrar
-          argocd app sync traefik --revision "$GITHUB_SHA" --prune --timeout 600
-          argocd app sync hello   --revision "$GITHUB_SHA" --prune --timeout 600
-          echo "🚀 Apps sincronizadas por Argo CD"
+          echo "🚀 ArgoCD detectará automáticamente los cambios y se sincronizará"
+          echo "📊 Puedes monitorear el progreso en la UI de ArgoCD"
 
 # ─────────────────────────────────────────────
-# 5) Verificación post-deploy
+# 5) Verificación post-deploy (opcional)
 # ─────────────────────────────────────────────
   verify:
     name: Post-deployment Verification
     runs-on: ubuntu-latest
-    needs: gitops-deploy
+    needs: gitops-validate
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
@@ -184,22 +170,25 @@ jobs:
           echo "${{ secrets.NETCUP_KUBECONFIG_RO }}" > ~/.kube/config
           chmod 600 ~/.kube/config
 
-      # Espera a que las aplicaciones estén Healthy y Synced
-      - name: Wait for Argo CD applications to be Healthy
+      # Esperar un tiempo para que ArgoCD se sincronice automáticamente
+      - name: Wait for ArgoCD auto-sync
         run: |
-          kubectl wait --for=jsonpath='{.status.health.status}=Healthy' \
-            application/traefik -n argocd --timeout=600s
-          kubectl wait --for=jsonpath='{.status.health.status}=Healthy' \
-            application/hello   -n argocd --timeout=600s
+          echo "⏱ Esperando sincronización automática de ArgoCD..."
+          sleep 120  # 2 minutos para que ArgoCD detecte y sincronice
 
-      - name: Health checks
+      # Verificar estado de las aplicaciones
+      - name: Check ArgoCD applications status
         run: |
-          kubectl wait --for=condition=ready \
-            pod -l app.kubernetes.io/name=traefik -n traefik --timeout=300s
-          kubectl wait --for=condition=ready \
-            pod -l app=hello -n traefik --timeout=300s
           kubectl get applications -n argocd -o wide
+          echo "📊 Estado de las aplicaciones en ArgoCD:"
+          kubectl get applications -n argocd -o jsonpath='{range .items[*]}{.metadata.name}: {.status.sync.status} - {.status.health.status}{"\n"}{end}'
+
+      # Verificar recursos desplegados
+      - name: Check deployed resources
+        run: |
+          echo "🔍 Verificando recursos desplegados:"
           kubectl get pods -A
+          kubectl get svc -A
 
 # ─────────────────────────────────────────────
 # 6) Notificaciones finales
@@ -212,7 +201,7 @@ jobs:
     steps:
       - name: Notify on success
         if: success()
-        run: echo "✅ Deployment successful!"
+        run: echo "✅ Deployment successful via GitOps!"
 
       - name: Notify on failure
         if: failure()

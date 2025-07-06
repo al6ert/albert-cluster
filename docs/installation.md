@@ -30,6 +30,26 @@ Use Helmfile to manage the charts:
 helmfile -f infra/apps/helmfile.yaml apply
 ```
 
+### 3. Verify Argo CD Access
+
+Ensure that the Argo CD web UI is reachable before continuing. If your cluster
+exposes Traefik via a `LoadBalancer` service, check the external IP:
+
+```bash
+kubectl get svc -n kube-system traefik
+```
+
+Confirm that any DNS record for Argo CD points to this IP and that your
+firewall allows access. If Argo CD is installed with its own `LoadBalancer`
+service, verify it as well:
+
+```bash
+kubectl get svc -n argocd argocd-server
+```
+
+Initial login requires either a reachable `LoadBalancer` service or a working
+Traefik ingress.
+
 ## Environment Setup
 
 ### Local Development (Minikube)

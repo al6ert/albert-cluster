@@ -5,4 +5,4 @@ resources:
   - rbac/gh-actions.yaml        
   - argocd.yaml
   - argocd-root.yaml
-  - ../apps  # Incluir las ArgoCD Applications de apps
+  # Nota: Las ArgoCD Applications ahora se manejan por separado en infra/apps/

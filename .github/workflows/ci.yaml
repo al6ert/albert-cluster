@@ -40,12 +40,31 @@ jobs:
 
       - name: Validate Kustomize output
         run: |
+          # Validar bootstrap
           if [ -f "infra/bootstrap/kustomization.yaml" ]; then
-            kubectl kustomize infra/bootstrap/ > /tmp/k.yaml
-            [ -s /tmp/k.yaml ] || { echo "❌ Kustomize generó salida vacía"; exit 1; }
-            echo "✅ Kustomize generó $(wc -l < /tmp/k.yaml) líneas"
+            kubectl kustomize infra/bootstrap/ > /tmp/bootstrap.yaml
+            [ -s /tmp/bootstrap.yaml ] || { echo "❌ Bootstrap Kustomize generó salida vacía"; exit 1; }
+            echo "✅ Bootstrap Kustomize generó $(wc -l < /tmp/bootstrap.yaml) líneas"
           else
             echo "ℹ️ Sin kustomization en infra/bootstrap/"
+          fi
+          
+          # Validar apps base (producción)
+          if [ -f "infra/apps/base/kustomization.yaml" ]; then
+            kubectl kustomize infra/apps/base/ > /tmp/apps-base.yaml
+            [ -s /tmp/apps-base.yaml ] || { echo "❌ Apps base Kustomize generó salida vacía"; exit 1; }
+            echo "✅ Apps base Kustomize generó $(wc -l < /tmp/apps-base.yaml) líneas"
+          else
+            echo "ℹ️ Sin kustomization en infra/apps/base/"
+          fi
+          
+          # Validar apps overlays (minikube)
+          if [ -f "infra/apps/overlays/minikube/kustomization.yaml" ]; then
+            kubectl kustomize infra/apps/overlays/minikube/ > /tmp/apps-minikube.yaml
+            [ -s /tmp/apps-minikube.yaml ] || { echo "❌ Apps minikube Kustomize generó salida vacía"; exit 1; }
+            echo "✅ Apps minikube Kustomize generó $(wc -l < /tmp/apps-minikube.yaml) líneas"
+          else
+            echo "ℹ️ Sin kustomization en infra/apps/overlays/minikube/"
           fi
 
 # ─────────────────────────────────────────────
@@ -140,9 +159,13 @@ jobs:
       # Validación rápida de los manifests de las Argo CD Applications
       - name: Validate Argo CD Applications manifests
         run: |
-          kubectl apply --dry-run=client -f infra/apps/traefik/argocd-application.yaml
-          kubectl apply --dry-run=client -f infra/apps/hello/argocd-application.yaml
-          echo "✅ Manifests válidos"
+          # Validar base (producción)
+          kubectl kustomize infra/apps/base/ | kubectl apply --dry-run=client -f -
+          echo "✅ Manifests base válidos"
+          
+          # Validar overlays (minikube)
+          kubectl kustomize infra/apps/overlays/minikube/ | kubectl apply --dry-run=client -f -
+          echo "✅ Manifests overlays válidos"
 
       - name: Validate CRDs
         run: kubectl apply --dry-run=client -f infra/bootstrap/crds/

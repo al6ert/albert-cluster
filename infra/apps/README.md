@@ -1,124 +1,137 @@
-# Configuración de Aplicaciones - Estrategia Híbrida GitOps
+# Aplicaciones ArgoCD
 
-## Resumen de la Configuración
+Este directorio contiene las aplicaciones de ArgoCD que gestionan el despliegue de los componentes del cluster.
 
-Esta configuración implementa una **estrategia híbrida** que combina:
-- **Helmfile** para desarrollo local (minikube)
-- **ArgoCD** para producción (netcup)
-
-## Estructura de Archivos
+## Estructura
 
 ```
-infra/
-├── apps/
+infra/apps/
+├── base/
+│   ├── kustomization.yaml         # Base (netcup/producción)
 │   ├── traefik/
-│   │   ├── argocd-application.yaml    # ArgoCD Application para Traefik
-│   │   └── values.yaml                # Values base para Traefik
-│   ├── hello/
-│   │   └── argocd-application.yaml    # ArgoCD Application para Hello
-│   ├── helmfile.yaml                  # Helmfile para desarrollo local
-│   └── kustomization.yaml             # Kustomization para apps
-├── envs/
-│   ├── minikube/                      # Valores para desarrollo local
-│   │   ├── traefik-values.yaml
-│   │   └── hello-values.yaml
-│   └── netcup/                        # Valores para producción
-│       ├── traefik-values.yaml
-│       └── hello-values.yaml
-└── charts/
-    └── hello/                         # Chart local de Hello
-        └── values.yaml
+│   │   └── argocd-application.yaml
+│   └── hello/
+│       └── argocd-application.yaml
+└── overlays/
+    └── minikube/
+        ├── kustomization.yaml     # Overlay para minikube (patches)
+        ├── patches-traefik.yaml   # Patch para traefik
+        └── patches-hello.yaml     # Patch para hello
 ```
 
-## Configuración por Entorno
+## Gestión de Entornos
 
-### Desarrollo Local (Minikube)
-- **Herramienta**: Helmfile
-- **Comando**: `helmfile -e minikube apply`
-- **Dominio**: `127.0.0.1.nip.io`
-- **TLS**: Staging Let's Encrypt
+### Enfoque Kustomize con Overlays
 
-### Producción (Netcup)
-- **Herramienta**: ArgoCD
-- **Configuración**: Automated sync
-- **Dominio**: `albertperez.dev`
-- **TLS**: Producción Let's Encrypt
+Utilizamos **Kustomize** para manejar las diferencias entre entornos de manera elegante:
 
-## Problemas Críticos Corregidos
+- **Una sola ArgoCD Application** por componente
+- **Base** para producción (netcup)
+- **Overlay** para minikube (desarrollo)
+- **Valores de Helm** separados en `infra/envs/`
 
-### ✅ Estructura de Overrides
-- **Antes**: Archivos de netcup eran ArgoCD Applications
-- **Después**: Archivos de netcup son values.yaml correctos
+### Entornos Soportados
 
-### ✅ Externalización de Values
-- **Antes**: Values hardcodeados en ArgoCD Applications
-- **Después**: Uso de `valueFiles` para cargar archivos externos
-
-### ✅ Configuración de certResolver
-- **Antes**: `certResolver: ""` vacío
-- **Después**: `certResolver: "le"` configurado
-
-### ✅ Recursos y Validación
-- **Antes**: Sin límites de recursos
-- **Después**: CPU y memoria configurados
-
-## Uso
-
-### Desarrollo Local
+#### Minikube (Desarrollo Local)
 ```bash
-# Desplegar en minikube
-helmfile -e minikube apply
+# Deploy usando Kustomize
+kustomize build infra/apps/overlays/minikube | kubectl apply -f -
 
-# Verificar
-kubectl get pods -n traefik
+# O usando el script
+./scripts/deploy.sh minikube
 ```
 
-### Producción
+**Configuración:**
+- Dominio: `127.0.0.1.nip.io`
+- Sin TLS
+- Configuración ligera
+
+#### Netcup (Producción)
 ```bash
-# ArgoCD se encarga automáticamente del despliegue
-# Verificar en ArgoCD UI
+# Deploy usando Kustomize
+kubectl apply -k infra/apps/base/
+
+# O usando el script
+./scripts/deploy.sh netcup
 ```
 
-## Configuración de Dominios
+**Configuración:**
+- Dominio: `albertperez.dev`
+- TLS con Let's Encrypt
+- Configuración completa
 
-### Para Producción
-1. Editar `infra/envs/netcup/traefik-values.yaml`:
-   ```yaml
-   global:
-     domain: "tu-dominio-real.com"
-   ```
+## Patches de Kustomize
 
-2. Editar `infra/envs/netcup/hello-values.yaml`:
-   ```yaml
-   ingress:
-     hosts:
-       - host: hello.tu-dominio-real.com
-   ```
+### Minikube (`overlays/minikube/patches-traefik.yaml`)
 
-3. Actualizar email en ambos archivos:
-   ```yaml
-   additionalArguments:
-     - "--certificatesresolvers.le.acme.email=albert@albertperez.dev
-   ```
+```yaml
+- op: replace
+  path: /spec/source/helm/valueFiles/1
+  value: ../../../envs/minikube/traefik-values.yaml
+- op: replace
+  path: /spec/source/helm/extraObjects/0/spec/routes/0/match
+  value: Host(`traefik.127.0.0.1.nip.io`)
+- op: replace
+  path: /spec/source/helm/extraObjects/0/spec/entryPoints
+  value:
+    - web
+    - websecure
+```
 
-## Sync Waves
+### Minikube (`overlays/minikube/patches-hello.yaml`)
 
-1. **Wave 0**: Traefik CRDs (bootstrap)
-2. **Wave 1**: Traefik (apps/traefik)
-3. **Wave 2**: Hello (apps/hello)
+```yaml
+- op: replace
+  path: /spec/source/helm/valueFiles/1
+  value: ../../../envs/minikube/hello-values.yaml
+```
+
+### Netcup (`base/kustomization.yaml`)
+
+No requiere patches ya que las ArgoCD Applications están configuradas por defecto para producción.
+
+## Ventajas de este Enfoque
+
+1. **DRY (Don't Repeat Yourself)**: Una sola ArgoCD Application por componente
+2. **Mantenibilidad**: Cambios centralizados en un lugar
+3. **Flexibilidad**: Fácil agregar nuevos entornos
+4. **Consistencia**: Misma estructura para todos los entornos
+5. **Claridad**: Separación clara entre configuración base y específica
+6. **Simplicidad**: Estructura estándar de Kustomize
+
+## Comandos Útiles
+
+```bash
+# Ver estado de las aplicaciones
+kubectl get applications -n argocd
+
+# Ver logs de Traefik
+kubectl logs -n traefik -l app.kubernetes.io/name=traefik
+
+# Verificar sincronización
+kubectl describe application traefik -n argocd
+
+# Aplicar cambios
+kustomize build infra/apps/overlays/minikube | kubectl apply -f -
+```
 
 ## Troubleshooting
 
 ### Problemas Comunes
-1. **Certificados no se generan**: Verificar configuración de email y dominio
-2. **Sync falla**: Verificar que los archivos de values existen
-3. **DNS no resuelve**: Verificar configuración de dominio
+
+1. **Aplicación no sincroniza**: Verificar que ArgoCD esté funcionando
+2. **Valores no se aplican**: Verificar paths en valueFiles
+3. **Dominios no resuelven**: Verificar configuración DNS
 
 ### Logs Útiles
+
 ```bash
-# Traefik logs
+# Logs de ArgoCD
+kubectl logs -n argocd -l app.kubernetes.io/name=argocd-server
+
+# Logs de Traefik
 kubectl logs -n traefik -l app.kubernetes.io/name=traefik
 
-# Hello logs
-kubectl logs -n traefik -l app=hello
+# Estado de las aplicaciones
+kubectl get applications -n argocd -o yaml
 ``` 

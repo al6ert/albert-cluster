@@ -1,0 +1,3 @@
+- op: replace
+  path: /spec/source/helm/valueFiles/1
+  value: ../../../envs/minikube/hello-values.yaml 

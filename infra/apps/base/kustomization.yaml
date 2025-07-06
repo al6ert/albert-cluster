@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - argocd/argocd-ingressroute.yaml
   - traefik/argocd-application.yaml
+  - traefik/traefik-dashboard-ingressroute.yaml
   - hello/argocd-application.yaml
 
 # Configuración base para netcup (producción)

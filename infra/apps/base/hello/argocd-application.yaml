@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hello
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"  # Después de Traefik
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/al6ert/albert-cluster.git
+    targetRevision: main
+    path: infra/charts/hello
+    helm:
+      valueFiles:
+        - values.yaml  # Valores base del chart
+        - ../../../envs/netcup/hello-values.yaml  # Valores específicos del entorno
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: traefik
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true 

@@ -1,20 +1,20 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: hello
+  name: traefik
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "2"  # Después de Traefik
+    argocd.argoproj.io/sync-wave: "1"  # Después de CRDs
 spec:
   project: default
   source:
-    repoURL: https://github.com/al6ert/albert-cluster.git
-    targetRevision: main
-    path: infra/charts/hello
+    repoURL: https://traefik.github.io/charts
+    chart: traefik
+    targetRevision: 24.0.0
     helm:
       valueFiles:
-        - ../../charts/hello/values.yaml
-        - ../../envs/netcup/hello-values.yaml
+        - values.yaml  # Valores base de Traefik
+        - ../../../envs/netcup/traefik-values.yaml  # Valores específicos del entorno
   destination:
     server: https://kubernetes.default.svc
     namespace: traefik

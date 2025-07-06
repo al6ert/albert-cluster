@@ -17,256 +17,203 @@ permissions:
   security-events: write
   packages: write
 
+# ─────────────────────────────────────────────
+# 1) Validación de sintaxis y linting
+# ─────────────────────────────────────────────
 jobs:
-  # 1) Validación de sintaxis y linting
   validate:
     name: Validate & Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      # Validación de sintaxis YAML
-      # - name: Validate YAML syntax
-      #   run: |
-      #     find . -name "*.yaml" -o -name "*.yml" | xargs -I {} sh -c 'echo "Validating {}"; yamllint {} || exit 1'
-      
-      # Set up Helm
+
+      # Helm (solo para lint; no plugins necesarios)
       - name: Set up Helm
         uses: azure/setup-helm@v3
-      
-      # Lint de todos los charts
+
       - name: Helm lint custom charts
         run: |
           if [ -d "infra/charts" ]; then
-            find infra/charts -name "Chart.yaml" -exec dirname {} \; | xargs -I {} helm lint {}
-          fi
-      
-      # Validación de Kustomize
-      - name: Validate Kustomize
-        run: |
-          if [ -f "infra/bootstrap/kustomization.yaml" ]; then
-            # Generate Kustomize output and validate YAML syntax
-            kubectl kustomize infra/bootstrap/ > /tmp/kustomize-output.yaml
-            if [ -s /tmp/kustomize-output.yaml ]; then
-              # Validate YAML syntax using kubectl explain (doesn't require API server)
-              kubectl explain --api-version=v1 --kind=Pod > /dev/null 2>&1 || echo "kubectl explain not available, skipping API validation"
-              echo "✅ Kustomize output generated successfully"
-              echo "📄 Generated $(wc -l < /tmp/kustomize-output.yaml) lines of YAML"
-            else
-              echo "⚠️ Kustomize generated empty output - this might be expected"
-            fi
-          else
-            echo "ℹ️ No kustomization.yaml found in infra/bootstrap/"
+            find infra/charts -name "Chart.yaml" -exec dirname {} \; \
+              | xargs -I {} helm lint {}
           fi
 
-  # 2) Security scanning
+      - name: Validate Kustomize output
+        run: |
+          if [ -f "infra/bootstrap/kustomization.yaml" ]; then
+            kubectl kustomize infra/bootstrap/ > /tmp/k.yaml
+            [ -s /tmp/k.yaml ] || { echo "❌ Kustomize generó salida vacía"; exit 1; }
+            echo "✅ Kustomize generó $(wc -l < /tmp/k.yaml) líneas"
+          else
+            echo "ℹ️ Sin kustomization en infra/bootstrap/"
+          fi
+
+# ─────────────────────────────────────────────
+# 2) Análisis de seguridad
+# ─────────────────────────────────────────────
   security:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: validate
     steps:
       - uses: actions/checkout@v4
-      
-      # Trivy vulnerability scanner
-      - name: Run Trivy vulnerability scanner
+
+      - name: Run Trivy (fs)
         uses: aquasecurity/trivy-action@master
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-      
-      # Upload security results
-      - name: Upload Trivy scan results to GitHub Security tab
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload Trivy results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: trivy-results.sarif
 
-
-  # 3) Testing
+# ─────────────────────────────────────────────
+# 3) Tests (unit + integración en kind)
+# ─────────────────────────────────────────────
   test:
     name: Run Tests
     runs-on: ubuntu-latest
     needs: [validate, security]
     steps:
       - uses: actions/checkout@v4
-      
-      # Set up Helm
+
       - name: Set up Helm
         uses: azure/setup-helm@v3
-      
-      # Install helm-unittest plugin
+
       - name: Install helm-unittest plugin
-        run: helm plugin install https://github.com/quintush/helm-unittest
-      
-      # Run unit tests
-      - name: Run unit tests
+        run: |
+          helm plugin install https://github.com/quintush/helm-unittest
+
+      - name: Run chart unit tests
         run: |
           if [ -d "infra/charts" ]; then
-            find infra/charts -name "Chart.yaml" -exec dirname {} \; | xargs -I {} helm unittest {}
+            find infra/charts -name "Chart.yaml" -exec dirname {} \; \
+              | xargs -I {} helm unittest {}
           fi
-      
-      # Integration tests with kind
+
+      # Clúster kind para pruebas de integración
       - name: Set up kind
         uses: helm/kind-action@v1
         with:
           node_image: kindest/node:v1.28.0
-      
-      - name: Bootstrap Argo CD
+
+      - name: Bootstrap lightweight Argo CD
         run: |
-          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create ns argocd --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f infra/bootstrap/argocd.yaml
-          kubectl wait --for=condition=established --timeout=60s crd/applications.argoproj.io
+          kubectl wait --for=condition=established crd/applications.argoproj.io --timeout=60s
           kubectl apply -f infra/bootstrap/argocd-root.yaml
           kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
 
-      - name: Run integration tests
+      - name: Smoke integration tests
         run: |
-          # Wait for Argo CD to sync
+          echo "⏱ Esperando sincronización automática…"
           sleep 30
-          
-          # Verify deployments
           kubectl get applications -n argocd
           kubectl get pods -A
 
-  # 4) Deploy to production
-  deploy-production:
-    name: Deploy to Production
+# ─────────────────────────────────────────────
+# 4) GitOps → producción (solo validación + trigger)
+# ─────────────────────────────────────────────
+  gitops-deploy:
+    name: GitOps Deployment Trigger
     runs-on: ubuntu-latest
-    needs: [test]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
-      
-      # Set up Helm
-      - name: Set up Helm
-        uses: azure/setup-helm@v3
-      
-      # Install Helmfile
-      - name: Install Helmfile
-        run: |
-          # Get the latest version
-          HELMFILE_VERSION=$(curl -s https://api.github.com/repos/helmfile/helmfile/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-          echo "Installing Helmfile version: $HELMFILE_VERSION"
-          
-          # Download and install
-          curl -L "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION#v}_linux_amd64.tar.gz" | tar -xz
-          sudo mv helmfile /usr/local/bin/
-          chmod +x /usr/local/bin/helmfile
-          
-          # Verify installation
-          helmfile --version
-      
-      # Setup kubeconfig for production
-      - name: Setup kubeconfig for production
+
+      # Kubeconfig (solo lectura)
+      - name: Setup kubeconfig (RO)
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.NETCUP_KUBECONFIG_RO }}" > ~/.kube/config
           chmod 600 ~/.kube/config
-      
-      # Verify connectivity
-      - name: Verify kubectl connectivity
-        run: kubectl get nodes
-      
-      # Validate CRDs
-      - name: Validate CRDs
-        run: |
-          kubectl apply --dry-run=client -f infra/bootstrap/crds/
-          echo "✅ CRDs validation passed"
-      
-      # Add Helm repos
-      - name: Add Helm repos
-        run: |
-          helm repo add traefik https://traefik.github.io/charts
-          helm repo update
-      
-      # Validate templates
-      - name: Validate Helmfile templates
-        run: |
-          cd infra/apps
-          echo "Current directory: $(pwd)"
-          echo "Files in current directory:"
-          ls -la
-          
-          echo "Validating Helmfile templates..."
-          helmfile template --environment netcup | kubectl apply --dry-run=client -f -
-          echo "✅ Helmfile templates validation passed"
-      
-      # Deploy to production
-      - name: Deploy to production
-        run: |
-          cd infra/apps
-          echo "Starting deployment to production..."
-          echo "Current directory: $(pwd)"
-          echo "Helmfile version: $(helmfile --version)"
-          
-          # Show what will be deployed
-          echo "Helmfile diff:"
-          helmfile diff --environment netcup || echo "No differences found or diff failed"
-          
-          # Deploy
-          helmfile apply --environment netcup
-      
-      # Verify deployment
-      - name: Verify deployment
-        run: |
-          kubectl get pods -A
-          kubectl get services -A
-          kubectl get ingress -A
+          kubectl get nodes
 
-  # 5) Post-deployment verification
+      # Validación rápida de los manifests de las Argo CD Applications
+      - name: Validate Argo CD Applications manifests
+        run: |
+          kubectl apply --dry-run=client -f infra/apps/traefik/argocd-application.yaml
+          kubectl apply --dry-run=client -f infra/apps/hello/argocd-application.yaml
+          echo "✅ Manifests válidos"
+
+      - name: Validate CRDs
+        run: kubectl apply --dry-run=client -f infra/bootstrap/crds/
+
+      # (Opcional) Instala CLI de Argo CD y sincroniza explícitamente
+      - name: Install Argo CD CLI
+        run: |
+          curl -sSL -o /usr/local/bin/argocd \
+            "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64"
+          chmod +x /usr/local/bin/argocd
+          argocd version --client
+
+      - name: Argo CD manual sync
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_TOKEN:  ${{ secrets.ARGOCD_TOKEN }}
+        run: |
+          argocd login "$ARGOCD_SERVER" --insecure --grpc-web \
+            --username token --password "$ARGOCD_TOKEN"
+          # Sincroniza las apps señalando el commit que acaba de entrar
+          argocd app sync traefik --revision "$GITHUB_SHA" --prune --timeout 600
+          argocd app sync hello   --revision "$GITHUB_SHA" --prune --timeout 600
+          echo "🚀 Apps sincronizadas por Argo CD"
+
+# ─────────────────────────────────────────────
+# 5) Verificación post-deploy
+# ─────────────────────────────────────────────
   verify:
     name: Post-deployment Verification
     runs-on: ubuntu-latest
-    needs: [deploy-production]
+    needs: gitops-deploy
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
-      
-      # Setup kubeconfig
-      - name: Setup kubeconfig
+
+      - name: Setup kubeconfig (RO)
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.NETCUP_KUBECONFIG_RO }}" > ~/.kube/config
           chmod 600 ~/.kube/config
-      
-      # Health checks
-      - name: Run health checks
-        run: |
-          # Wait for pods to be ready
-          kubectl wait --for=condition=ready pod -l app=traefik -n traefik --timeout=300s
-          
-          # Check service endpoints
-          kubectl get endpoints -A
-          
-          # Test connectivity (if external IP available)
-          # curl -I http://your-domain.com/health || echo "External health check skipped"
-      
-      # Performance tests
-      - name: Run performance tests
-        run: |
-          # Basic load testing with hey (if available)
-          # hey -n 100 -c 10 http://your-domain.com/ || echo "Performance tests skipped"
 
-  # 6) Notifications
+      # Espera a que las aplicaciones estén Healthy y Synced
+      - name: Wait for Argo CD applications to be Healthy
+        run: |
+          kubectl wait --for=jsonpath='{.status.health.status}=Healthy' \
+            application/traefik -n argocd --timeout=600s
+          kubectl wait --for=jsonpath='{.status.health.status}=Healthy' \
+            application/hello   -n argocd --timeout=600s
+
+      - name: Health checks
+        run: |
+          kubectl wait --for=condition=ready \
+            pod -l app.kubernetes.io/name=traefik -n traefik --timeout=300s
+          kubectl wait --for=condition=ready \
+            pod -l app=hello -n traefik --timeout=300s
+          kubectl get applications -n argocd -o wide
+          kubectl get pods -A
+
+# ─────────────────────────────────────────────
+# 6) Notificaciones finales
+# ─────────────────────────────────────────────
   notify:
     name: Send Notifications
     runs-on: ubuntu-latest
-    needs: [verify]
+    needs: verify
     if: always()
     steps:
       - name: Notify on success
         if: success()
-        run: |
-          echo "✅ Deployment successful!"
-          # Add Slack/Discord/Email notifications here
-      
+        run: echo "✅ Deployment successful!"
+
       - name: Notify on failure
         if: failure()
-        run: |
-          echo "❌ Deployment failed!"
-          # Add failure notifications here
-
-   
+        run: echo "❌ Deployment failed!"

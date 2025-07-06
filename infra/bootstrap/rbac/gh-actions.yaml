@@ -1,0 +1,33 @@
+# rbac/gh-actions.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gh-actions
+  namespace: argocd
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gh-actions-role
+  namespace: argocd
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "applications/status"]
+    verbs: ["get", "update", "patch"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: gh-actions-binding
+  namespace: argocd
+subjects:
+  - kind: ServiceAccount
+    name: gh-actions
+    namespace: argocd
+roleRef:
+  kind: Role
+  name: gh-actions-role
+  apiGroup: rbac.authorization.k8s.io

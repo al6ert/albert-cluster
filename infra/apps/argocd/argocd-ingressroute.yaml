@@ -1,0 +1,17 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  entryPoints:
+    - websecure        # coincide con tu traefik-values
+  routes:
+    - match: Host(`argocd.albertperez.dev`)
+      kind: Rule
+      services:
+        - name: argocd-server
+          port: 443       # ← el Service ya publica 443 → 8080
+          scheme: https
+  tls:
+    certResolver: letsencrypt   # o `secretName: argocd-tls` si cargas un cert manual

@@ -15,6 +15,23 @@ spec:
       valueFiles:
         - ../../apps/traefik/values.yaml
         - ../../envs/netcup/traefik-values.yaml
+      extraObjects:
+        - apiVersion: traefik.containo.us/v1alpha1
+          kind: IngressRoute
+          metadata:
+            name: traefik-dashboard
+            namespace: traefik
+          spec:
+            entryPoints:
+              - websecure
+            routes:
+              - match: Host(`traefik.albertperez.dev`)
+                kind: Rule
+                services:
+                  - name: api@internal
+                    kind: TraefikService
+            tls:
+              certResolver: le
   destination:
     server: https://kubernetes.default.svc
     namespace: traefik

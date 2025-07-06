@@ -98,7 +98,7 @@ kubectl get pods -n traefik
 3. Actualizar email en ambos archivos:
    ```yaml
    additionalArguments:
-     - "--certificatesresolvers.le.acme.email=tu-email-real@dominio.com"
+     - "--certificatesresolvers.le.acme.email=albert@albertperez.dev
    ```
 
 ## Sync Waves

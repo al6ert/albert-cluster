@@ -33,9 +33,9 @@ ports:
 additionalArguments:
   - "--certificatesresolvers.le.acme.httpchallenge=true"
   - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-  - "--certificatesresolvers.le.acme.email=tu-email-real@dominio.com"  # Actualizar placeholder
+  - "--certificatesresolvers.le.acme.email=talbert@albertperez.dev"  # Actualizar placeholder
   - "--certificatesresolvers.le.acme.storage=/data/acme.json"
-  - "--certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+  - "--certificatesresolvers.le.acme.caserver=https://acme-v02.api.letsencrypt.org/directory"
 
 # Dashboard
 ingressRoute:

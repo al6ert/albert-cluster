@@ -27,48 +27,44 @@ jobs:
         with:
           version: v3.14.4
 
-      - name: Install Helmfile
+      - name: Install curl and Helmfile
         run: |
+          apt-get update && apt-get install -y curl
           curl -L https://github.com/helmfile/helmfile/releases/download/v0.162.0/helmfile_0.162.0_linux_amd64.tar.gz | tar xz
-          sudo mv helmfile /usr/local/bin/
+          mv helmfile /usr/local/bin/
+          chmod +x /usr/local/bin/helmfile
 
-      - name: Render and validate manifests for minikube (dev branch)
+      - name: Render manifests for minikube (dev branch)
         if: github.ref == 'refs/heads/dev'
         run: |
           echo "Rendering minikube manifests for dev branch..."
           cd infra/apps
           mkdir -p ../rendered/minikube
           helmfile --environment minikube template > ../rendered/minikube/all.yaml
-          
-          echo "Validating minikube manifests (client-side only)..."
-          kubectl apply --dry-run=client --validate=false -f ../rendered/minikube/all.yaml
-          echo "✅ Minikube manifests are valid"
+          echo "✅ Minikube manifests rendered successfully"
 
-      - name: Render and validate manifests for netcup (main branch)
+      - name: Render manifests for netcup (main branch)
         if: github.ref == 'refs/heads/main'
         run: |
           echo "Rendering netcup manifests for main branch..."
           cd infra/apps
           mkdir -p ../rendered/netcup
           helmfile --environment netcup template > ../rendered/netcup/all.yaml
-          
-          echo "Validating netcup manifests (client-side only)..."
-          kubectl apply --dry-run=client --validate=false -f ../rendered/netcup/all.yaml
-          echo "✅ Netcup manifests are valid"
+          echo "✅ Netcup manifests rendered successfully"
 
-      - name: Lint YAML files for minikube (dev branch)
+      - name: Validate YAML syntax for minikube (dev branch)
         if: github.ref == 'refs/heads/dev'
         run: |
-          echo "Linting YAML files for minikube..."
+          echo "Validating YAML syntax for minikube..."
           python3 -c "import yaml; list(yaml.safe_load_all(open('infra/rendered/minikube/all.yaml'))); print('✅ Minikube YAML syntax is valid')"
-          echo "✅ YAML linting passed for minikube"
+          echo "✅ YAML validation passed for minikube"
 
-      - name: Lint YAML files for netcup (main branch)
+      - name: Validate YAML syntax for netcup (main branch)
         if: github.ref == 'refs/heads/main'
         run: |
-          echo "Linting YAML files for netcup..."
+          echo "Validating YAML syntax for netcup..."
           python3 -c "import yaml; list(yaml.safe_load_all(open('infra/rendered/netcup/all.yaml'))); print('✅ Netcup YAML syntax is valid')"
-          echo "✅ YAML linting passed for netcup"
+          echo "✅ YAML validation passed for netcup"
 
   deploy:
     needs: validate

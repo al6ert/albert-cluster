@@ -13,8 +13,7 @@ Helmfile (render) → YAML plano → ArgoCD (deploy)
 ```
 .
 ├── .github/workflows/
-│   ├── render.yaml          # Renderiza manifiestos con Helmfile
-│   ├── ci.yaml              # Valida manifiestos renderizados
+│   ├── ci.yaml              # Renderiza y valida manifiestos
 │   ├── monitoring.yaml
 │   └── release.yaml
 ├── infra/
@@ -75,12 +74,10 @@ kubectl apply -k infra/bootstrap/
 
 ### Workflows de GitHub Actions
 
-1. **render.yaml**: Renderiza manifiestos de ambos entornos
+1. **ci.yaml**: Renderiza y valida manifiestos de ambos entornos
    - Se ejecuta en push a `main` o `dev`
-   - Genera YAML en `infra/rendered/`
-
-2. **ci.yaml**: Valida manifiestos renderizados
-   - Verifica sintaxis y estructura
+   - Renderiza YAML con Helmfile
+   - Valida sintaxis y estructura
    - Prepara para sincronización de ArgoCD
 
 ### ArgoCD Applications

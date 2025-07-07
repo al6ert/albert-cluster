@@ -1,13 +1,8 @@
 # infra/envs/netcup/traefik-values.yaml
 # Valores específicos para producción (netcup)
 
-# Configuración del dashboard de Traefik
-ingressRoute:
-  dashboard:
-    # Exponer dashboard en traefik.albertperez.dev
-    entryPoints: ["web", "websecure"]
-    # Configurar TLS con Let's Encrypt
-    tls: {}
+global:
+  domain: "albertperez.dev"  # Tu dominio real en producción
 
 persistence:
   enabled: true
@@ -25,3 +20,7 @@ ports:
   websecure:
     tls:
       certResolver: "le"  # Usar Let's Encrypt en producción
+    expose:
+      enabled: true
+      exposedPort: 443
+      protocol: TCP

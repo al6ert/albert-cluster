@@ -3,7 +3,7 @@ releases:
     namespace: traefik
     createNamespace: true
     chart: traefik/traefik
-    version: 24.0.0
+    version: 36.3.0
     values:
       - values.yaml
       - ../../envs/minikube/traefik-values.yaml

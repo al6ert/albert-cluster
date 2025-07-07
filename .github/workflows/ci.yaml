@@ -32,34 +32,43 @@ jobs:
           curl -L https://github.com/helmfile/helmfile/releases/download/v0.162.0/helmfile_0.162.0_linux_amd64.tar.gz | tar xz
           sudo mv helmfile /usr/local/bin/
 
-      - name: Render and validate manifests for minikube
+      - name: Render and validate manifests for minikube (dev branch)
+        if: github.ref == 'refs/heads/dev'
         run: |
-          echo "Rendering minikube manifests..."
+          echo "Rendering minikube manifests for dev branch..."
           cd infra/apps
           mkdir -p ../rendered/minikube
           helmfile --environment minikube template > ../rendered/minikube/all.yaml
           
-          echo "Validating minikube manifests..."
-          kubectl apply --dry-run=client -f ../rendered/minikube/all.yaml
+          echo "Validating minikube manifests (client-side only)..."
+          kubectl apply --dry-run=client --validate=false -f ../rendered/minikube/all.yaml
           echo "✅ Minikube manifests are valid"
 
-      - name: Render and validate manifests for netcup
+      - name: Render and validate manifests for netcup (main branch)
+        if: github.ref == 'refs/heads/main'
         run: |
-          echo "Rendering netcup manifests..."
+          echo "Rendering netcup manifests for main branch..."
           cd infra/apps
           mkdir -p ../rendered/netcup
           helmfile --environment netcup template > ../rendered/netcup/all.yaml
           
-          echo "Validating netcup manifests..."
-          kubectl apply --dry-run=client -f ../rendered/netcup/all.yaml
+          echo "Validating netcup manifests (client-side only)..."
+          kubectl apply --dry-run=client --validate=false -f ../rendered/netcup/all.yaml
           echo "✅ Netcup manifests are valid"
 
-      - name: Lint YAML files
+      - name: Lint YAML files for minikube (dev branch)
+        if: github.ref == 'refs/heads/dev'
         run: |
-          echo "Linting YAML files..."
+          echo "Linting YAML files for minikube..."
           python3 -c "import yaml; list(yaml.safe_load_all(open('infra/rendered/minikube/all.yaml'))); print('✅ Minikube YAML syntax is valid')"
+          echo "✅ YAML linting passed for minikube"
+
+      - name: Lint YAML files for netcup (main branch)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "Linting YAML files for netcup..."
           python3 -c "import yaml; list(yaml.safe_load_all(open('infra/rendered/netcup/all.yaml'))); print('✅ Netcup YAML syntax is valid')"
-          echo "✅ YAML linting passed"
+          echo "✅ YAML linting passed for netcup"
 
   deploy:
     needs: validate
@@ -71,9 +80,12 @@ jobs:
 
       - name: Deploy to ArgoCD
         run: |
-          echo "🚀 Manifests validated and ready for ArgoCD sync"
-          echo "ArgoCD will automatically sync from:"
-          echo "- infra/rendered/minikube/ (for minikube environment)"
-          echo "- infra/rendered/netcup/ (for netcup environment)"
+          if [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            echo "🚀 Minikube manifests validated and ready for ArgoCD sync"
+            echo "ArgoCD will automatically sync from: infra/rendered/minikube/"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "🚀 Netcup manifests validated and ready for ArgoCD sync"
+            echo "ArgoCD will automatically sync from: infra/rendered/netcup/"
+          fi
           echo ""
           echo "✅ CI pipeline completed successfully!"

@@ -7,6 +7,9 @@ on:
     branches: [main, dev]
   workflow_dispatch:
 
+# Skip CI for auto-render commits
+if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
 jobs:
   validate:
     runs-on: ubuntu-latest

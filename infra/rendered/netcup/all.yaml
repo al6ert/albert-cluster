@@ -207,10 +207,10 @@ spec:
           containerPort: 9000
           protocol: "TCP"
         - name: "web"
-          containerPort: 80
+          containerPort: 8000
           protocol: "TCP"
         - name: "websecure"
-          containerPort: 443
+          containerPort: 8443
           protocol: "TCP"
         securityContext:
           allowPrivilegeEscalation: false
@@ -228,8 +228,8 @@ spec:
           - "--global.sendanonymoususage"
           - "--entrypoints.metrics.address=:9100/tcp"
           - "--entrypoints.traefik.address=:9000/tcp"
-          - "--entrypoints.web.address=:80/tcp"
-          - "--entrypoints.websecure.address=:443/tcp"
+          - "--entrypoints.web.address=:8000/tcp"
+          - "--entrypoints.websecure.address=:8443/tcp"
           - "--api.dashboard=true"
           - "--ping=true"
           - "--metrics.prometheus=true"

@@ -1,23 +1,27 @@
 # infra/apps/traefik/values.yaml
 # Valores base para Traefik
 
-global:
-  domain: "example.com"
+# El dominio se hereda de los valores globales del entorno
+# network.domain en global-values.yaml
 
 service:
   type: LoadBalancer
 
 ports:
+  traefik: null
   web:
-    port: 80
+    port: 8000
     expose: true
     exposedPort: 80
     protocol: TCP
   websecure:
-    port: 443
+    port: 8443
     expose: true
     exposedPort: 443
     protocol: TCP
+
+deployment:
+  healthchecksPort: web
 
 persistence:
   enabled: false
@@ -31,9 +35,14 @@ additionalArguments:
   - "--certificatesresolvers.le.acme.storage=/data/acme.json"
   - "--certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
 
+# Configuración del dashboard de Traefik
 dashboard:
   enabled: true
-  ingressRoute:
+
+# Configuración del IngressRoute para el dashboard
+ingressRoute:
+  dashboard:
     enabled: true
+    # Los entryPoints se configurarán en los values específicos del entorno
     annotations:
       kubernetes.io/ingress.class: traefik 

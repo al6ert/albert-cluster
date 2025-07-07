@@ -1,6 +1,10 @@
 # infra/envs/minikube/traefik-values.yaml
 # Overrides específicos para tu entorno Minikube (desarrollo local)
 
-global:
-  # Usamos nip.io para resolver 127.0.0.1 sin tocar /etc/hosts
-  domain: "127.0.0.1.nip.io"
+# Configuración del dashboard de Traefik
+ingressRoute:
+  dashboard:
+    # Exponer dashboard en traefik.127.0.0.1.nip.io
+    entryPoints: ["web", "websecure"]
+    # Configurar TLS con Let's Encrypt
+    tls: {}

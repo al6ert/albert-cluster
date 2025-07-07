@@ -39,9 +39,12 @@ additionalArguments:
   - "--certificatesresolvers.le.acme.storage=/data/acme.json"
   - "--certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
 
-dashboard:
-  enabled: true
-  ingressRoute:
+ingressRoute:
+  dashboard:
     enabled: true
     annotations:
-      kubernetes.io/ingress.class: traefik 
+      kubernetes.io/ingress.class: traefik
+    entryPoints: ["web", "websecure"]
+    matchRule: >
+      Host(`traefik.{{ .Values.global.domain }}`)
+      && (PathPrefix(`/dashboard`) || PathPrefix(`/api`)) 

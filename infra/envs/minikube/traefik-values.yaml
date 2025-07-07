@@ -4,3 +4,13 @@
 global:
   # Usamos nip.io para resolver 127.0.0.1 sin tocar /etc/hosts
   domain: "127.0.0.1.nip.io"
+
+ingressRoute:
+  dashboard:
+    enabled: true
+    entryPoints: ["web", "websecure"]
+    matchRule: >
+      Host(`traefik.127.0.0.1.nip.io`)
+      && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
+    annotations:
+      kubernetes.io/ingress.class: traefik

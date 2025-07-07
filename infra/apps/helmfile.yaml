@@ -1,28 +1,45 @@
+# infra/apps/helmfile.yaml
+# Helmfile raíz que incluye todas las aplicaciones
+
 environments:
   minikube:
     values:
-      - ../envs/minikube/traefik-values.yaml
-      - ../envs/minikube/hello-values.yaml
+      - ../envs/minikube/global-values.yaml
   netcup:
     values:
-      - ../envs/netcup/traefik-values.yaml
-      - ../envs/netcup/hello-values.yaml
+      - ../envs/netcup/global-values.yaml
 
 ---
+
 repositories:
   - name: traefik
     url: https://traefik.github.io/charts
 
----
 releases:
+  # Incluir Traefik primero (sync-wave: 1)
   - name: traefik
     namespace: traefik
+    createNamespace: true
     chart: traefik/traefik
+    version: 24.0.0
     values:
       - traefik/values.yaml
-  
+      - ../envs/{{ .Environment.Name }}/traefik-values.yaml
+    wait: true
+    timeout: 300
+    atomic: true
+
+  # Incluir Hello después de Traefik (sync-wave: 2)
   - name: hello
     namespace: traefik
+    createNamespace: true
     chart: ../charts/hello
+    version: 0.1.0
     values:
-      - ../charts/hello/values.yaml  
+      - hello/values.yaml
+      - ../envs/{{ .Environment.Name }}/hello-values.yaml
+    wait: true
+    timeout: 300
+    atomic: true
+    needs:
+      - traefik  

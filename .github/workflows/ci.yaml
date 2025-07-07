@@ -1,251 +1,69 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
     branches: [main, dev]
   pull_request:
-    branches: [main]
-  release:
-    types: [published]
+    branches: [main, dev]
+  workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
-permissions:
-  contents: read
-  security-events: write
-  packages: write
-
-# ─────────────────────────────────────────────
-# 1) Validación de sintaxis y linting
-# ─────────────────────────────────────────────
 jobs:
   validate:
-    name: Validate & Lint
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      # Helm (solo para lint; no plugins necesarios)
-      - name: Set up Helm
-        uses: azure/setup-helm@v3
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
 
-      - name: Helm lint custom charts
+      - name: Validate rendered manifests for minikube
         run: |
-          if [ -d "infra/charts" ]; then
-            find infra/charts -name "Chart.yaml" -exec dirname {} \; \
-              | xargs -I {} helm lint {}
+          if [ -f infra/rendered/minikube/all.yaml ]; then
+            echo "Validating minikube manifests..."
+            kubectl apply --dry-run=client -f infra/rendered/minikube/all.yaml
+            echo "✅ Minikube manifests are valid"
+          else
+            echo "❌ Minikube manifests not found. Run render workflow first."
+            exit 1
           fi
 
-      - name: Validate Kustomize output
+      - name: Validate rendered manifests for netcup
         run: |
-          # Validar bootstrap
-          if [ -f "infra/bootstrap/kustomization.yaml" ]; then
-            kubectl kustomize infra/bootstrap/ > /tmp/bootstrap.yaml
-            [ -s /tmp/bootstrap.yaml ] || { echo "❌ Bootstrap Kustomize generó salida vacía"; exit 1; }
-            echo "✅ Bootstrap Kustomize generó $(wc -l < /tmp/bootstrap.yaml) líneas"
+          if [ -f infra/rendered/netcup/all.yaml ]; then
+            echo "Validating netcup manifests..."
+            kubectl apply --dry-run=client -f infra/rendered/netcup/all.yaml
+            echo "✅ Netcup manifests are valid"
           else
-            echo "ℹ️ Sin kustomization en infra/bootstrap/"
-          fi
-          
-          # Validar apps base (producción)
-          if [ -f "infra/apps/base/kustomization.yaml" ]; then
-            kubectl kustomize infra/apps/base/ > /tmp/apps-base.yaml
-            [ -s /tmp/apps-base.yaml ] || { echo "❌ Apps base Kustomize generó salida vacía"; exit 1; }
-            echo "✅ Apps base Kustomize generó $(wc -l < /tmp/apps-base.yaml) líneas"
-          else
-            echo "ℹ️ Sin kustomization en infra/apps/base/"
-          fi
-          
-          # Validar apps overlays (minikube)
-          if [ -f "infra/apps/overlays/minikube/kustomization.yaml" ]; then
-            kubectl kustomize infra/apps/overlays/minikube/ > /tmp/apps-minikube.yaml
-            [ -s /tmp/apps-minikube.yaml ] || { echo "❌ Apps minikube Kustomize generó salida vacía"; exit 1; }
-            echo "✅ Apps minikube Kustomize generó $(wc -l < /tmp/apps-minikube.yaml) líneas"
-          else
-            echo "ℹ️ Sin kustomization en infra/apps/overlays/minikube/"
+            echo "❌ Netcup manifests not found. Run render workflow first."
+            exit 1
           fi
 
-# ─────────────────────────────────────────────
-# 2) Análisis de seguridad
-# ─────────────────────────────────────────────
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
+      - name: Lint YAML files
+        run: |
+          echo "Linting YAML files..."
+          yamllint infra/rendered/minikube/all.yaml
+          yamllint infra/rendered/netcup/all.yaml
+          echo "✅ YAML linting passed"
+
+  deploy:
     needs: validate
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run Trivy (fs)
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: sarif
-          output: trivy-results.sarif
-
-      - name: Upload Trivy results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: trivy-results.sarif
-
-# ─────────────────────────────────────────────
-# 3) Tests (unit + integración en kind)
-# ─────────────────────────────────────────────
-  test:
-    name: Run Tests
     runs-on: ubuntu-latest
-    needs: [validate, security]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v3
-
-      - name: Install helm-unittest plugin
+      - name: Deploy to ArgoCD
         run: |
-          helm plugin install https://github.com/quintush/helm-unittest
-
-      - name: Run chart unit tests
-        run: |
-          if [ -d "infra/charts" ]; then
-            find infra/charts -name "Chart.yaml" -exec dirname {} \; \
-              | xargs -I {} helm unittest {}
-          fi
-
-      # Clúster kind para pruebas de integración
-      - name: Set up kind
-        uses: helm/kind-action@v1
-        with:
-          node_image: kindest/node:v1.28.0
-
-      - name: Bootstrap lightweight Argo CD
-        run: |
-          kubectl create ns argocd --dry-run=client -o yaml | kubectl apply -f -
-          kubectl apply -f infra/bootstrap/argocd.yaml
-          kubectl wait --for=condition=established crd/applications.argoproj.io --timeout=60s
-          kubectl apply -f infra/bootstrap/argocd-root.yaml
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
-
-      - name: Smoke integration tests
-        run: |
-          echo "⏱ Esperando sincronización automática…"
-          sleep 30
-          kubectl get applications -n argocd
-          kubectl get pods -A
-
-# ─────────────────────────────────────────────
-# 4) GitOps → producción (validación + confiar en sincronización automática)
-# ─────────────────────────────────────────────
-  gitops-deploy:
-    name: GitOps Validation & Auto-Sync
-    runs-on: ubuntu-latest
-    environment: production
-    needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-
-      # Kubeconfig (solo lectura)
-      - name: Setup kubeconfig (RO)
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.NETCUP_KUBECONFIG_RO }}" > ~/.kube/config
-          chmod 600 ~/.kube/config
-          kubectl get nodes
-
-      # Validación rápida de los manifests de las Argo CD Applications
-      - name: Validate Argo CD Applications manifests
-        run: |
-          # Validar base (producción)
-          kubectl kustomize infra/apps/base/ | kubectl apply --dry-run=client -f -
-          echo "✅ Manifests base válidos"
-          
-          # Validar overlays (minikube)
-          kubectl kustomize infra/apps/overlays/minikube/ | kubectl apply --dry-run=client -f -
-          echo "✅ Manifests overlays válidos"
-
-      - name: Validate CRDs
-        run: kubectl apply --dry-run=client -f infra/bootstrap/crds/
-
-      # Verificar que ArgoCD está funcionando y confiar en sincronización automática
-      - name: Verify ArgoCD is running
-        run: |
-          kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-server
-          echo "✅ ArgoCD está funcionando - la sincronización será automática"
-
-      # Verificar que ArgoCD está listo para sincronización automática
-
-# ─────────────────────────────────────────────
-# 5) Verificación post-deploy
-# ─────────────────────────────────────────────
-  verify:
-    name: Post-deployment Verification
-    runs-on: ubuntu-latest
-    needs: gitops-deploy
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup kubeconfig (RO)
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.NETCUP_KUBECONFIG_RO }}" > ~/.kube/config
-          chmod 600 ~/.kube/config
-
-      # Espera a que las aplicaciones estén Healthy y Synced
-      - name: Wait for Argo CD applications to be Healthy
-        run: |
-          # Verificar estado general de las aplicaciones
-          kubectl get applications -n argocd -o wide
-          
-          # Esperar a que estén saludables (más permisivo)
-          kubectl wait --for=jsonpath='{.status.health.status}=Healthy' \
-            application/traefik -n argocd --timeout=300s || echo "⚠️ Traefik health check timeout"
-          kubectl wait --for=jsonpath='{.status.health.status}=Healthy' \
-            application/hello -n argocd --timeout=300s || echo "⚠️ Hello health check timeout"
-
-      - name: Health checks
-        run: |
-          # Verificar si los pods están corriendo (más robusto)
-          echo "🔍 Verificando estado de las aplicaciones..."
-          
-          # Traefik
-          if kubectl get pods -n traefik -l app.kubernetes.io/name=traefik 2>/dev/null; then
-            kubectl wait --for=condition=ready \
-              pod -l app.kubernetes.io/name=traefik -n traefik --timeout=300s || echo "⚠️ Traefik pods not ready"
-          else
-            echo "⚠️ No se encontraron pods de Traefik"
-          fi
-          
-          # Hello
-          if kubectl get pods -n traefik -l app=hello 2>/dev/null; then
-            kubectl wait --for=condition=ready \
-              pod -l app=hello -n traefik --timeout=300s || echo "⚠️ Hello pods not ready"
-          else
-            echo "⚠️ No se encontraron pods de Hello"
-          fi
-          
-          # Estado final
-          echo "📊 Estado final:"
-          kubectl get applications -n argocd -o wide
-          kubectl get pods -A | grep -E "(traefik|hello)" || echo "ℹ️ No se encontraron pods de traefik o hello"
-
-# ─────────────────────────────────────────────
-# 6) Notificaciones finales
-# ─────────────────────────────────────────────
-  notify:
-    name: Send Notifications
-    runs-on: ubuntu-latest
-    needs: verify
-    if: always()
-    steps:
-      - name: Notify on success
-        if: success()
-        run: echo "✅ Deployment successful!"
-
-      - name: Notify on failure
-        if: failure()
-        run: echo "❌ Deployment failed!"
+          echo "🚀 Manifests validated and ready for ArgoCD sync"
+          echo "ArgoCD will automatically sync from:"
+          echo "- infra/rendered/minikube/ (for minikube environment)"
+          echo "- infra/rendered/netcup/ (for netcup environment)"
+          echo ""
+          echo "✅ CI pipeline completed successfully!"

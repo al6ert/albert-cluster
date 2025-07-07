@@ -1,0 +1,25 @@
+# infra/apps/hello/values.yaml
+# Valores base para la aplicación hello
+
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: "alpine"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: hello.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+app:
+  message: "¡Hola desde el cluster!" 

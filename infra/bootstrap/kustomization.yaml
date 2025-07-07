@@ -5,4 +5,5 @@ resources:
   - rbac/gh-actions.yaml        
   - argocd.yaml
   - argocd-root.yaml
+  - argocd-minikube.yaml
   # Nota: Las ArgoCD Applications ahora se manejan por separado en infra/apps/

@@ -1,187 +1,141 @@
-# Albert Cluster
+# Albert Cluster - GitOps con Helmfile + ArgoCD
 
-A GitOps-managed Kubernetes cluster repository using **Argo CD** for continuous deployment and infrastructure management.
+Infraestructura Kubernetes gestionada con GitOps usando Helmfile para renderizado y ArgoCD para despliegue automático.
 
-[![CI/CD Pipeline](https://github.com/${{ github.repository }}/workflows/CI%2FCD%20Pipeline/badge.svg)](https://github.com/${{ github.repository }}/actions/workflows/ci.yaml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Security Scan](https://github.com/${{ github.repository }}/workflows/Security%20Scan/badge.svg)](https://github.com/${{ github.repository }}/actions/workflows/ci.yaml)
+## 🏗️ Arquitectura
 
-## 📋 Table of Contents
-
-- [Project Overview](#project-overview)
-- [Repository Structure](#repository-structure)
-- [Quick Installation](#quick-installation)
-- [GitOps Architecture](#gitops-architecture)
-- [CI/CD Pipeline](#cicd-pipeline)
-- [Documentation](#documentation)
-- [Contributing](#contributing)
-
-## 🎯 Project Overview
-
-Albert Cluster is a personal Kubernetes cluster managed through GitOps principles. All infrastructure and application configurations are version-controlled in this repository and automatically deployed using Argo CD.
-
-### Key Features
-
-- **GitOps-driven deployment** with Argo CD
-- **Multi-environment support** (local development, production)
-- **Automated CI/CD pipeline** with security scanning
-- **Infrastructure as Code** using Kubernetes manifests and Helm charts
-- **Comprehensive monitoring** and observability
-
-## 📁 Repository Structure
-
+### Flujo GitOps
 ```
-albert-cluster/
-├── .github/                    # GitHub Actions workflows
-│   └── workflows/
-│       ├── ci.yaml            # Main CI/CD pipeline
-│       ├── monitoring.yaml    # Monitoring workflow
-│       └── release.yaml       # Release automation
-├── .dockerignore              # Docker ignore rules
-├── .gitignore                 # Git ignore patterns
-├── .yamllint                  # YAML linting configuration
-├── CHANGELOG.md               # Project changelog
-├── CONTRIBUTING.md            # Contribution guidelines
-├── Dockerfile                 # Container image definition
-├── LICENSE                    # MIT License
-├── README.md                  # This file
-├── docs/                      # Documentation
-│   ├── gitops-pipeline.md     # GitOps and CI/CD details
-│   ├── installation.md        # Installation guide
-│   ├── minikube-local.md      # Local development setup
-│   └── renovar-certificados-mkcert.md  # Certificate renewal
-└── infra/                     # Infrastructure configuration
-    ├── apps/                  # Applications managed by Argo CD
-    │   ├── helmfile.yaml      # Helmfile for chart management
-    │   └── traefik/           # Traefik ingress controller
-    │       └── values.yaml    # Traefik configuration
-    ├── bootstrap/             # Argo CD bootstrap configuration
-    │   ├── argocd-root.yaml   # Root Argo CD application
-    │   ├── argocd.yaml        # Argo CD installation
-    │   ├── crds/              # Custom Resource Definitions
-    │   │   └── traefik-crds.yaml
-    │   ├── envs/              # Environment-specific configs
-    │   │   └── netcup/
-    │   │       └── argocd-values.yaml
-    │   └── kustomization.yaml # Kustomize configuration
-    ├── charts/                # Custom Helm charts
-    │   └── hello/             # Example application chart
-    │       ├── hello-deployment.yaml
-    │       ├── hello-http-ingressroute.yaml
-    │       ├── hello-ingressroute.yaml
-    │       └── templates/     # Helm chart templates
-    │           ├── test-deployment.yaml
-    │           └── test-service.yaml
-    ├── envs/                  # Environment-specific values
-    │   ├── minikube/          # Local development environment
-    │   │   └── traefik-values.yaml
-    │   └── netcup/            # Production environment
-    │       └── traefik-values.yaml
-    └── README.md              # Infrastructure documentation
+Helmfile (render) → YAML plano → ArgoCD (deploy)
 ```
 
-## 🚀 Quick Installation
+### Estructura del Proyecto
+```
+.
+├── .github/workflows/
+│   ├── render.yaml          # Renderiza manifiestos con Helmfile
+│   ├── ci.yaml              # Valida manifiestos renderizados
+│   ├── monitoring.yaml
+│   └── release.yaml
+├── infra/
+│   ├── apps/
+│   │   ├── helmfile.yaml    # Helmfile raíz con todas las aplicaciones
+│   │   ├── hello/
+│   │   │   ├── helmfile.yaml
+│   │   │   └── values.yaml
+│   │   └── traefik/
+│   │       ├── helmfile.yaml
+│   │       └── values.yaml
+│   ├── envs/
+│   │   ├── minikube/        # Configuración para desarrollo
+│   │   └── netcup/          # Configuración para producción
+│   ├── rendered/
+│   │   ├── minikube/        # YAML renderizado para desarrollo
+│   │   └── netcup/          # YAML renderizado para producción
+│   ├── charts/
+│   │   └── hello/           # Chart personalizado
+│   └── bootstrap/           # Configuración de ArgoCD
+├── docs/
+└── scripts/
+```
 
-### Prerequisites
+## 🚀 Inicio Rápido
 
-- Kubernetes cluster (minikube for local development)
-- `kubectl` configured to access your cluster
-- `helm` (v3.x)
-- `helmfile` (for managing multiple charts)
+### Prerrequisitos
+- Kubernetes cluster (minikube, kind, o producción)
+- ArgoCD instalado
+- Helmfile
+- kubectl
 
-### Step 1: Install Argo CD
-
+### Despliegue Local (Minikube)
 ```bash
-kubectl apply -f infra/bootstrap/argocd.yaml
-kubectl apply -f infra/bootstrap/argocd-root.yaml
+# 1. Renderizar manifiestos
+cd infra/apps
+helmfile --environment minikube template
+
+# 2. Aplicar bootstrap (ArgoCD)
+kubectl apply -k infra/bootstrap/
+
+# 3. ArgoCD sincronizará automáticamente desde infra/rendered/minikube/
 ```
 
-### Step 2: Deploy Applications
-
+### Despliegue en Producción
 ```bash
-helmfile -f infra/apps/helmfile.yaml apply
+# 1. Renderizar manifiestos
+cd infra/apps
+helmfile --environment netcup template
+
+# 2. Aplicar bootstrap (ArgoCD)
+kubectl apply -k infra/bootstrap/
+
+# 3. ArgoCD sincronizará automáticamente desde infra/rendered/netcup/
 ```
 
-### Step 3: Verify Argo CD Access
+## 🔄 Pipeline CI/CD
 
-Ensure that the Argo CD UI is reachable. If you expose Traefik via a
-`LoadBalancer` service, find the external IP and confirm your DNS record points
-to it:
+### Workflows de GitHub Actions
 
-```bash
-kubectl get svc -n kube-system traefik
-```
+1. **render.yaml**: Renderiza manifiestos de ambos entornos
+   - Se ejecuta en push a `main` o `dev`
+   - Genera YAML en `infra/rendered/`
 
-If Argo CD itself runs with a `LoadBalancer`, check its service instead:
+2. **ci.yaml**: Valida manifiestos renderizados
+   - Verifica sintaxis y estructura
+   - Prepara para sincronización de ArgoCD
 
-```bash
-kubectl get svc -n argocd argocd-server
-```
+### ArgoCD Applications
 
-Initial access requires either a `LoadBalancer` service or a working Traefik
-ingress so that the Argo CD endpoint is reachable through your firewall.
+- **cluster-root**: Sincroniza desde `infra/rendered/netcup/` (producción)
+- **cluster-minikube**: Sincroniza desde `infra/rendered/minikube/` (desarrollo)
 
-For detailed installation instructions, see the [Installation Guide](docs/installation.md).
+## 📦 Aplicaciones
 
-## 🔄 GitOps Architecture
+### Traefik
+- Ingress controller con Let's Encrypt
+- Dashboard habilitado
+- Configuración específica por entorno
 
-Este repositorio implementa GitOps puro:
+### Hello
+- Aplicación de ejemplo
+- Chart personalizado
+- Configuración específica por entorno
 
-- **Git es la única fuente de verdad** para toda la configuración.
-- **Argo CD** monitoriza continuamente el repositorio y sincroniza los cambios automáticamente.
-- **No se fuerza la sincronización manual** desde el pipeline CI/CD: ArgoCD gestiona todo el ciclo de vida de los recursos.
-- **Toda la infraestructura y aplicaciones** se declaran como código y se gestionan por ArgoCD.
+## 🌍 Entornos
 
-> **Nota:** El pipeline CI/CD nunca ejecuta comandos de sincronización ni refresh manual sobre ArgoCD. Todo el flujo es 100% GitOps: cualquier cambio en el repositorio se refleja automáticamente en el clúster mediante la reconciliación de ArgoCD.
+### Minikube (Desarrollo)
+- Dominio: `127.0.0.1.nip.io`
+- Sin persistencia
+- Configuración simplificada
 
-### Repository Organization
+### Netcup (Producción)
+- Dominio: `albertperez.dev`
+- Let's Encrypt habilitado
+- Persistencia configurada
 
-- `infra/bootstrap/` - Argo CD installation and root application
-- `infra/apps/` - Applications managed by Argo CD (Traefik, CRDs)
-- `infra/envs/` - Environment-specific values (minikube, netcup)
-- `infra/charts/` - Custom Helm charts for applications
+## 🛠️ Desarrollo
 
-For detailed GitOps information, see [GitOps and CI/CD Pipeline](docs/gitops-pipeline.md).
+### Agregar Nueva Aplicación
+1. Crear `infra/apps/<app>/helmfile.yaml`
+2. Crear `infra/apps/<app>/values.yaml`
+3. Agregar valores por entorno en `infra/envs/`
+4. Incluir en `infra/apps/helmfile.yaml`
 
-## ⚡ CI/CD Pipeline
+### Modificar Configuración
+1. Editar values en `infra/envs/<entorno>/`
+2. El pipeline renderizará automáticamente
+3. ArgoCD sincronizará los cambios
 
-El pipeline CI/CD sigue las mejores prácticas GitOps:
+## 📚 Documentación
 
-- **Validación & Linting:** Verifica sintaxis y calidad de los manifests y charts.
-- **Escaneo de seguridad:** Analiza vulnerabilidades antes de desplegar.
-- **Testing:** Ejecuta tests unitarios y de integración en un clúster efímero.
-- **Despliegue GitOps:** Solo aplica manifests y confía en la reconciliación automática de ArgoCD. No se fuerza la sincronización ni el refresh manual.
-- **Verificación post-deploy:** Solo verifica el estado de salud de las aplicaciones, sin intervenir en la reconciliación.
+- [Instalación](docs/installation.md)
+- [Pipeline GitOps](docs/gitops-pipeline.md)
+- [Desarrollo Local](docs/minikube-local.md)
 
-### Pipeline Stages
+## 🤝 Contribución
 
-1. **Validate & Lint** - Syntax validation and linting
-2. **Security Scan** - Vulnerability scanning
-3. **Testing** - Unit and integration tests
-4. **GitOps Deploy** - Manifests validation and push; ArgoCD auto-syncs changes
-5. **Verify** - Post-deployment health checks
+Ver [CONTRIBUTING.md](CONTRIBUTING.md) para detalles sobre el proceso de contribución.
 
-> **Importante:** El pipeline nunca fuerza la sincronización de ArgoCD. Todo el ciclo de vida de los recursos está gestionado por ArgoCD siguiendo el modelo GitOps puro.
+## 📄 Licencia
 
-## 📚 Documentation
-
-- **[Installation Guide](docs/installation.md)** - Complete setup instructions
-- **[GitOps and CI/CD Pipeline](docs/gitops-pipeline.md)** - Detailed pipeline information
-- **[Local Development](docs/minikube-local.md)** - Minikube setup and local development
-- **[Certificate Management](docs/renovar-certificados-mkcert.md)** - TLS certificate renewal
-
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🔗 Links
-
-- [Argo CD Documentation](https://argo-cd.readthedocs.io/)
-- [Kubernetes Documentation](https://kubernetes.io/docs/)
-- [Helm Documentation](https://helm.sh/docs/)
-- [Traefik Documentation](https://doc.traefik.io/traefik/)
+Este proyecto está bajo la Licencia MIT - ver [LICENSE](LICENSE) para detalles.
 

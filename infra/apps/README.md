@@ -2,21 +2,23 @@
 
 Este directorio contiene las aplicaciones de ArgoCD que gestionan el despliegue de los componentes del cluster.
 
-## Estructura
+## Estructura Optimizada
 
 ```
 infra/apps/
 ├── base/
 │   ├── kustomization.yaml         # Base (netcup/producción)
 │   ├── traefik/
-│   │   └── argocd-application.yaml
+│   │   ├── argocd-application.yaml
+│   │   └── ingressroutes.yaml     # IngressRoutes consolidados
 │   └── hello/
 │       └── argocd-application.yaml
 └── overlays/
     └── minikube/
-        ├── kustomization.yaml     # Overlay para minikube (patches)
+        ├── kustomization.yaml     # Overlay para minikube
         ├── patches-traefik.yaml   # Patch para traefik
-        └── patches-hello.yaml     # Patch para hello
+        ├── patches-hello.yaml     # Patch para hello
+        └── patches-traefik-dashboard.yaml # Patch para IngressRoutes
 ```
 
 ## Gestión de Entornos
@@ -29,6 +31,28 @@ Utilizamos **Kustomize** para manejar las diferencias entre entornos de manera e
 - **Base** para producción (netcup)
 - **Overlay** para minikube (desarrollo)
 - **Valores de Helm** separados en `infra/envs/`
+- **IngressRoutes consolidados** en un solo archivo
+
+### Dos Formas de Deploy en Local
+
+#### 1. Helmfile (Desarrollo Rápido)
+```bash
+# Deploy completo con Helmfile
+helmfile -f infra/apps/helmfile.yaml apply
+
+# Deploy específico
+helmfile -f infra/apps/helmfile.yaml apply --selector name=traefik
+helmfile -f infra/apps/helmfile.yaml apply --selector name=hello
+```
+
+#### 2. ArgoCD + Kustomize (Pruebas de GitOps)
+```bash
+# Deploy completo con Kustomize
+kustomize build infra/apps/overlays/minikube | kubectl apply -f -
+
+# O usando el script
+./scripts/deploy.sh minikube
+```
 
 ### Entornos Soportados
 

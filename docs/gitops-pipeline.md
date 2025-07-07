@@ -1,98 +1,288 @@
-# GitOps and CI/CD Pipeline
+# GitOps Pipeline con Helmfile + ArgoCD
 
-This document describes the GitOps approach and CI/CD pipeline implemented in this project.
+Este documento describe la arquitectura GitOps implementada usando Helmfile para renderizado y ArgoCD para despliegue automático.
 
-## GitOps Architecture
+## 🏗️ Arquitectura GitOps
 
-Este repositorio implementa GitOps puro:
+### Flujo de Trabajo
+```
+1. Desarrollo → 2. Helmfile Render → 3. YAML Plano → 4. ArgoCD Sync
+```
 
-- **Git es la única fuente de verdad** para toda la infraestructura y aplicaciones.
-- **Argo CD** monitoriza continuamente el repositorio y sincroniza automáticamente los cambios en el clúster.
-- **No se fuerza la sincronización ni el refresh manual** desde el pipeline CI/CD: ArgoCD gestiona todo el ciclo de vida de los recursos.
-- **Toda la infraestructura y aplicaciones** se declaran como código y se gestionan por ArgoCD.
+### Componentes Principales
 
-> **Diferencia clave con pipelines tradicionales:**
-> En este flujo, el pipeline CI/CD nunca ejecuta comandos de sincronización ni refresh manual sobre ArgoCD. Todo el ciclo de vida de los recursos está gestionado por ArgoCD siguiendo el modelo GitOps puro. Cualquier cambio en el repositorio se refleja automáticamente en el clúster mediante la reconciliación de ArgoCD.
+#### Helmfile
+- **Propósito**: Renderizar manifiestos YAML desde charts y values
+- **Ubicación**: `infra/apps/helmfile.yaml`
+- **Entornos**: `minikube` y `netcup`
 
-## Repository Structure
+#### ArgoCD
+- **Propósito**: Sincronizar manifiestos YAML con el cluster
+- **Aplicaciones**: 
+  - `cluster-root` → `infra/rendered/netcup/`
+  - `cluster-minikube` → `infra/rendered/minikube/`
 
-The repository is organized to support GitOps workflows:
+## 🔄 Pipeline CI/CD
 
-- `infra/bootstrap/` - Contains manifests to install Argo CD and the root application
-- `infra/apps/` - Applications managed by Argo CD (Traefik, CRDs, etc.)
-- `infra/envs/` - Environment-specific values (minikube for local, netcup for production)
-- `infra/charts/` - Custom Helm charts for applications
+### Workflow: render.yaml
 
-## CI/CD Pipeline
+Renderiza manifiestos de ambos entornos usando Helmfile.
 
-El pipeline CI/CD sigue las mejores prácticas GitOps:
+```yaml
+name: Render Manifests
+on:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
 
-- **Validación & Linting:** Verifica sintaxis y calidad de los manifests y charts.
-- **Escaneo de seguridad:** Analiza vulnerabilidades antes de desplegar.
-- **Testing:** Ejecuta tests unitarios y de integración en un clúster efímero.
-- **Despliegue GitOps:** Solo aplica manifests y confía en la reconciliación automática de ArgoCD. No se fuerza la sincronización ni el refresh manual.
-- **Verificación post-deploy:** Solo verifica el estado de salud de las aplicaciones, sin intervenir en la reconciliación.
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Helmfile
+        run: |
+          curl -L https://github.com/helmfile/helmfile/releases/download/v0.162.0/helmfile_0.162.0_linux_amd64.tar.gz | tar xz
+          sudo mv helmfile /usr/local/bin/
 
-### Pipeline Stages
+      - name: Render manifests for minikube
+        run: |
+          cd infra/apps
+          helmfile --environment minikube template > ../rendered/minikube/all.yaml
 
-1. **Validate & Lint** - YAML syntax validation and linting
-2. **Security Scan** - Vulnerability scanning with Trivy
-3. **Testing** - Unit and integration tests with kind
-4. **GitOps Deploy** - Manifests validation and push; ArgoCD auto-syncs changes
-5. **Verify** - Post-deployment health checks
+      - name: Render manifests for netcup
+        run: |
+          cd infra/apps
+          helmfile --environment netcup template > ../rendered/netcup/all.yaml
+```
 
-> **Importante:** El pipeline nunca fuerza la sincronización de ArgoCD. Todo el ciclo de vida de los recursos está gestionado por ArgoCD siguiendo el modelo GitOps puro.
+### Workflow: ci.yaml
 
-### Pipeline Features
+Valida los manifiestos renderizados y prepara para ArgoCD.
 
-- ✅ **Automatic validation** of YAML syntax and Helm charts
-- ✅ **Security scanning** with Trivy
-- ✅ **Unit and integration tests** with kind
-- ✅ **Automatic deployment** to staging and production
-- ✅ **Continuous monitoring** of the cluster
-- ✅ **Semantic versioning** automation
-- ✅ **Status notifications**
+```yaml
+name: CI
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
 
-## Workflow Triggers
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate rendered manifests
+        run: |
+          kubectl apply --dry-run=client -f infra/rendered/minikube/all.yaml
+          kubectl apply --dry-run=client -f infra/rendered/netcup/all.yaml
 
-The pipeline is triggered by:
+      - name: Lint YAML files
+        run: |
+          yamllint infra/rendered/minikube/all.yaml
+          yamllint infra/rendered/netcup/all.yaml
+```
 
-- **Push to main branch** - Deploys to production
-- **Push to dev branch** - Deploys to staging
-- **Pull requests** - Runs validation and tests
-- **Releases** - Triggers full pipeline
+## 📁 Estructura de Archivos
 
-## Security Features
+### Configuración de Aplicaciones
+```
+infra/apps/
+├── helmfile.yaml              # Helmfile raíz
+├── hello/
+│   ├── helmfile.yaml          # Configuración específica de Hello
+│   └── values.yaml            # Valores base de Hello
+└── traefik/
+    ├── helmfile.yaml          # Configuración específica de Traefik
+    └── values.yaml            # Valores base de Traefik
+```
 
-- **Vulnerability scanning** with Trivy on every commit
-- **Secret management** with proper .gitignore exclusions
-- **RBAC** configured for Argo CD
-- **Network policies** for pod-to-pod communication
+### Valores por Entorno
+```
+infra/envs/
+├── minikube/
+│   ├── global-values.yaml     # Valores globales para desarrollo
+│   ├── hello-values.yaml      # Valores específicos de Hello
+│   └── traefik-values.yaml    # Valores específicos de Traefik
+└── netcup/
+    ├── global-values.yaml     # Valores globales para producción
+    ├── hello-values.yaml      # Valores específicos de Hello
+    └── traefik-values.yaml    # Valores específicos de Traefik
+```
 
-## Monitoring and Observability
+### Manifiestos Renderizados
+```
+infra/rendered/
+├── minikube/
+│   └── all.yaml               # YAML renderizado para desarrollo
+└── netcup/
+    └── all.yaml               # YAML renderizado para producción
+```
 
-The pipeline includes:
+## 🚀 Despliegue
 
-- **Application health checks** post-deployment
-- **Resource monitoring** and alerting
-- **Log aggregation** and analysis
-- **Performance metrics** collection
+### Desarrollo Local (Minikube)
 
-## Rollback Strategy
+1. **Renderizar manifiestos**:
+   ```bash
+   cd infra/apps
+   helmfile --environment minikube template
+   ```
 
-In case of deployment issues:
+2. **Aplicar bootstrap de ArgoCD**:
+   ```bash
+   kubectl apply -k infra/bootstrap/
+   ```
 
-1. **Automatic rollback** through Argo CD
-2. **Manual rollback** via Git revert
-3. **Health check failures** trigger automatic rollback
-4. **Monitoring alerts** for quick response
+3. **ArgoCD sincroniza automáticamente** desde `infra/rendered/minikube/`
 
-## Best Practices
+### Producción (Netcup)
 
-- **Immutable tags** for Docker images
-- **Declarative configuration** only
-- **Environment parity** between staging and production
-- **Infrastructure testing** before deployment
-- **Documentation** updated with every change
+1. **Renderizar manifiestos**:
+   ```bash
+   cd infra/apps
+   helmfile --environment netcup template
+   ```
 
-For more information about the CI/CD configuration, see the workflow files in `.github/workflows/`. 
+2. **Aplicar bootstrap de ArgoCD**:
+   ```bash
+   kubectl apply -k infra/bootstrap/
+   ```
+
+3. **ArgoCD sincroniza automáticamente** desde `infra/rendered/netcup/`
+
+## 🔧 Configuración de ArgoCD
+
+### Aplicación Root (Producción)
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-root
+  namespace: argocd
+spec:
+  source:
+    repoURL: https://github.com/al6ert/albert-cluster.git
+    targetRevision: main
+    path: infra/rendered/netcup
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+```
+
+### Aplicación Minikube (Desarrollo)
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-minikube
+  namespace: argocd
+spec:
+  source:
+    repoURL: https://github.com/al6ert/albert-cluster.git
+    targetRevision: dev
+    path: infra/rendered/minikube
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+```
+
+## 🛠️ Desarrollo
+
+### Agregar Nueva Aplicación
+
+1. **Crear estructura de la aplicación**:
+   ```bash
+   mkdir -p infra/apps/nueva-app
+   ```
+
+2. **Crear helmfile.yaml**:
+   ```yaml
+   releases:
+     - name: nueva-app
+       namespace: traefik
+       chart: nueva-app/nueva-app
+       values:
+         - values.yaml
+         - ../../envs/{{ .Environment.Name }}/nueva-app-values.yaml
+   ```
+
+3. **Crear values.yaml base**:
+   ```yaml
+   # infra/apps/nueva-app/values.yaml
+   replicaCount: 1
+   image:
+     repository: nginx
+     tag: "alpine"
+   ```
+
+4. **Agregar valores por entorno**:
+   ```bash
+   # infra/envs/minikube/nueva-app-values.yaml
+   replicaCount: 1
+   
+   # infra/envs/netcup/nueva-app-values.yaml
+   replicaCount: 2
+   ```
+
+5. **Incluir en helmfile raíz**:
+   ```yaml
+   # infra/apps/helmfile.yaml
+   releases:
+     - name: nueva-app
+       # ... configuración
+   ```
+
+### Modificar Configuración
+
+1. **Editar values** en `infra/envs/<entorno>/`
+2. **El pipeline renderiza automáticamente** los cambios
+3. **ArgoCD sincroniza** los nuevos manifiestos
+
+## 🔍 Monitoreo y Debugging
+
+### Verificar Estado de ArgoCD
+```bash
+kubectl get applications -n argocd
+kubectl describe application cluster-root -n argocd
+```
+
+### Verificar Manifiestos Renderizados
+```bash
+# Ver manifiestos de minikube
+cat infra/rendered/minikube/all.yaml
+
+# Ver manifiestos de netcup
+cat infra/rendered/netcup/all.yaml
+```
+
+### Debugging de Helmfile
+```bash
+cd infra/apps
+helmfile --environment minikube template --debug
+helmfile --environment netcup template --debug
+```
+
+## 🎯 Ventajas de esta Arquitectura
+
+### Simplicidad
+- **Un solo tool**: Helmfile para toda la gestión
+- **Sin plugins**: ArgoCD vanilla sin dependencias externas
+- **YAML plano**: Fácil de revisar y debuggear
+
+### Consistencia
+- **Mismo flujo**: Para desarrollo y producción
+- **Valores centralizados**: Fácil gestión de configuración
+- **Renderizado automático**: Sin errores manuales
+
+### Auditabilidad
+- **YAML en Git**: Trazabilidad completa
+- **Sin sidecars**: ArgoCD puro
+- **Historial claro**: Cambios visibles en el repositorio
+
+## 🔗 Enlaces Útiles
+
+- [Helmfile Documentation](https://helmfile.readthedocs.io/)
+- [ArgoCD Documentation](https://argo-cd.readthedocs.io/)
+- [Traefik Documentation](https://doc.traefik.io/traefik/) 

@@ -1,0 +1,21 @@
+# infra/envs/minikube/global-values.yaml
+# Valores globales para el entorno Minikube (opcional)
+
+# Configuración global del entorno
+environment:
+  name: minikube
+  type: development
+
+# Configuración de red
+network:
+  domain: "127.0.0.1.nip.io"
+  internal: true
+
+# Configuración de recursos
+resources:
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+  requests:
+    cpu: "100m"
+    memory: "128Mi" 

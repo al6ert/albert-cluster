@@ -1,0 +1,8 @@
+# infra/envs/netcup/argocd-values.yaml
+server:
+  service:
+    type: LoadBalancer        # MetalLB asignará IP
+configs:
+  params:
+    # Desactiva logística del repo de ejemplo
+    # server.insecure: true     # Solo si planeas proteger con Traefik+Auth

@@ -1,0 +1,39 @@
+# infra/apps/traefik/values.yaml
+# Valores base para Traefik
+
+global:
+  domain: "example.com"
+
+service:
+  type: LoadBalancer
+
+ports:
+  web:
+    port: 80
+    expose: true
+    exposedPort: 80
+    protocol: TCP
+  websecure:
+    port: 443
+    expose: true
+    exposedPort: 443
+    protocol: TCP
+
+persistence:
+  enabled: false
+  path: /data
+  size: 128Mi
+
+additionalArguments:
+  - "--certificatesresolvers.le.acme.httpchallenge=true"
+  - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+  - "--certificatesresolvers.le.acme.email=admin@example.com"
+  - "--certificatesresolvers.le.acme.storage=/data/acme.json"
+  - "--certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+
+dashboard:
+  enabled: true
+  ingressRoute:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: traefik 

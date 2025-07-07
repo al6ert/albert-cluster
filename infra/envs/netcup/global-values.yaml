@@ -1,0 +1,27 @@
+# infra/envs/netcup/global-values.yaml
+# Valores globales para el entorno Netcup (producción)
+
+# Configuración global del entorno
+environment:
+  name: netcup
+  type: production
+
+# Configuración de red
+network:
+  domain: "albertperez.dev"
+  internal: false
+
+# Configuración de recursos
+resources:
+  limits:
+    cpu: "1000m"
+    memory: "1Gi"
+  requests:
+    cpu: "200m"
+    memory: "256Mi"
+
+# Configuración de seguridad
+security:
+  tls:
+    enabled: true
+    certResolver: "le" 

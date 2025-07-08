@@ -8,9 +8,10 @@ metadata:
   labels:
     app.kubernetes.io/name: traefik
     app.kubernetes.io/instance: traefik-traefik
-    helm.sh/chart: traefik-24.0.0
+    helm.sh/chart: traefik-36.3.0
     app.kubernetes.io/managed-by: Helm
   annotations:
+automountServiceAccountToken: false
 ---
 # Source: traefik/templates/pvc.yaml
 apiVersion: v1
@@ -23,7 +24,7 @@ metadata:
   labels:
     app.kubernetes.io/name: traefik
     app.kubernetes.io/instance: traefik-traefik
-    helm.sh/chart: traefik-24.0.0
+    helm.sh/chart: traefik-36.3.0
     app.kubernetes.io/managed-by: Helm
 spec:
   accessModes:
@@ -40,25 +41,40 @@ metadata:
   labels:
     app.kubernetes.io/name: traefik
     app.kubernetes.io/instance: traefik-traefik
-    helm.sh/chart: traefik-24.0.0
+    helm.sh/chart: traefik-36.3.0
     app.kubernetes.io/managed-by: Helm
 rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - nodes
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
   - apiGroups:
       - extensions
       - networking.k8s.io
     resources:
       - ingressclasses
       - ingresses
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - services
-      - endpoints
-      - secrets
     verbs:
       - get
       - list
@@ -72,17 +88,17 @@ rules:
       - update
   - apiGroups:
       - traefik.io
-      - traefik.containo.us
     resources:
       - ingressroutes
       - ingressroutetcps
       - ingressrouteudps
       - middlewares
       - middlewaretcps
+      - serverstransports
+      - serverstransporttcps
       - tlsoptions
       - tlsstores
       - traefikservices
-      - serverstransports
     verbs:
       - get
       - list
@@ -96,7 +112,7 @@ metadata:
   labels:
     app.kubernetes.io/name: traefik
     app.kubernetes.io/instance: traefik-traefik
-    helm.sh/chart: traefik-24.0.0
+    helm.sh/chart: traefik-36.3.0
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -116,7 +132,7 @@ metadata:
   labels:
     app.kubernetes.io/name: traefik
     app.kubernetes.io/instance: traefik-traefik
-    helm.sh/chart: traefik-24.0.0
+    helm.sh/chart: traefik-36.3.0
     app.kubernetes.io/managed-by: Helm
   annotations:
 spec:
@@ -126,11 +142,11 @@ spec:
     app.kubernetes.io/instance: traefik-traefik
   ports:
   - port: 80
-    name: "web"
+    name: web
     targetPort: web
     protocol: TCP
   - port: 443
-    name: "websecure"
+    name: websecure
     targetPort: websecure
     protocol: TCP
 ---
@@ -143,7 +159,7 @@ metadata:
   labels:
     app.kubernetes.io/name: traefik
     app.kubernetes.io/instance: traefik-traefik
-    helm.sh/chart: traefik-24.0.0
+    helm.sh/chart: traefik-36.3.0
     app.kubernetes.io/managed-by: Helm
   annotations:
 spec:
@@ -152,11 +168,11 @@ spec:
     matchLabels:
       app.kubernetes.io/name: traefik
       app.kubernetes.io/instance: traefik-traefik
-  strategy: 
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+  strategy:
     type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   minReadySeconds: 0
   template: 
     metadata:
@@ -167,21 +183,22 @@ spec:
       labels:
         app.kubernetes.io/name: traefik
         app.kubernetes.io/instance: traefik-traefik
-        helm.sh/chart: traefik-24.0.0
+        helm.sh/chart: traefik-36.3.0
         app.kubernetes.io/managed-by: Helm
     spec:
       serviceAccountName: traefik
+      automountServiceAccountToken: true
       terminationGracePeriodSeconds: 60
       hostNetwork: false
       containers:
-      - image: docker.io/traefik:v2.10.4
+      - image: docker.io/traefik:v3.4.3
         imagePullPolicy: IfNotPresent
         name: traefik
         resources:
         readinessProbe:
           httpGet:
             path: /ping
-            port: 9000
+            port: 8080
             scheme: HTTP
           failureThreshold: 1
           initialDelaySeconds: 2
@@ -191,7 +208,7 @@ spec:
         livenessProbe:
           httpGet:
             path: /ping
-            port: 9000
+            port: 8080
             scheme: HTTP
           failureThreshold: 3
           initialDelaySeconds: 2
@@ -200,18 +217,18 @@ spec:
           timeoutSeconds: 2
         lifecycle:
         ports:
-        - name: "metrics"
+        - name: metrics
           containerPort: 9100
-          protocol: "TCP"
-        - name: "traefik"
-          containerPort: 9000
-          protocol: "TCP"
-        - name: "web"
-          containerPort: 8000
-          protocol: "TCP"
-        - name: "websecure"
-          containerPort: 8443
-          protocol: "TCP"
+          protocol: TCP
+        - name: traefik
+          containerPort: 8080
+          protocol: TCP
+        - name: web
+          containerPort: 80
+          protocol: TCP
+        - name: websecure
+          containerPort: 443
+          protocol: TCP
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -224,20 +241,25 @@ spec:
           - name: tmp
             mountPath: /tmp
         args:
-          - "--global.checknewversion"
-          - "--global.sendanonymoususage"
-          - "--entrypoints.metrics.address=:9100/tcp"
-          - "--entrypoints.traefik.address=:9000/tcp"
-          - "--entrypoints.web.address=:8000/tcp"
-          - "--entrypoints.websecure.address=:8443/tcp"
+          - "--global.checkNewVersion"
+          - "--entryPoints.metrics.address=:9100/tcp"
+          - "--entryPoints.traefik.address=:8080/tcp"
+          - "--entryPoints.web.address=:80/tcp"
+          - "--entryPoints.websecure.address=:443/tcp"
           - "--api.dashboard=true"
           - "--ping=true"
           - "--metrics.prometheus=true"
           - "--metrics.prometheus.entrypoint=metrics"
           - "--providers.kubernetescrd"
+          - "--providers.kubernetescrd.allowCrossNamespace=true"
+          - "--providers.kubernetescrd.allowEmptyServices=true"
           - "--providers.kubernetesingress"
-          - "--entrypoints.websecure.http.tls=true"
-          - "--entrypoints.websecure.http.tls.certResolver=le"
+          - "--providers.kubernetesingress.allowEmptyServices=true"
+          - "--providers.kubernetesingress.ingressendpoint.publishedservice=traefik/traefik"
+          - "--entryPoints.websecure.http.tls=true"
+          - "--entryPoints.websecure.http.tls.certResolver=le"
+          - "--log.level=INFO"
+          
           - "--certificatesresolvers.le.acme.httpchallenge=true"
           - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
           - "--certificatesresolvers.le.acme.email=albert@albertperez.dev"
@@ -259,7 +281,6 @@ spec:
         - name: tmp
           emptyDir: {}
       securityContext:
-        fsGroupChangePolicy: OnRootMismatch
         runAsGroup: 65532
         runAsNonRoot: true
         runAsUser: 65532
@@ -273,33 +294,49 @@ metadata:
   labels:
     app.kubernetes.io/name: traefik
     app.kubernetes.io/instance: traefik-traefik
-    helm.sh/chart: traefik-24.0.0
+    helm.sh/chart: traefik-36.3.0
     app.kubernetes.io/managed-by: Helm
   name: traefik
 spec:
   controller: traefik.io/ingress-controller
 ---
-# Source: traefik/templates/dashboard-ingressroute.yaml
+# Source: traefik/templates/ingressroute.yaml
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: traefik-dashboard
   namespace: traefik
-  annotations:
   labels:
     app.kubernetes.io/name: traefik
     app.kubernetes.io/instance: traefik-traefik
-    helm.sh/chart: traefik-24.0.0
+    helm.sh/chart: traefik-36.3.0
     app.kubernetes.io/managed-by: Helm
 spec:
   entryPoints:
-  - traefik
+  - websecure
   routes:
-  - match: PathPrefix(`/dashboard`) || PathPrefix(`/api`)
+  - match: Host(`traefik.albertperez.dev`) && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
+
     kind: Rule
     services:
-    - name: api@internal
-      kind: TraefikService
+      - kind: TraefikService
+        name: api@internal
+    middlewares:
+      - name: basic-auth
+        namespace: admin
+  tls:
+    secretName: traefik-dashboard-cert
+---
+# Source: traefik/templates/extra-objects.yaml
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: basic-auth
+  namespace: admin
+spec:
+  basicAuth:
+    realm: Protected Area
+    secret: admin-basic-auth
 
 ---
 # Source: hello/templates/deployment.yaml
@@ -351,7 +388,7 @@ spec:
     spec:
       containers:
       - name: hello
-        image: "nginx:alpine"
+        image: "hashicorp/http-echo"
         imagePullPolicy: IfNotPresent
         args:
           - "-text=¡Hola desde Netcup!"

@@ -16,5 +16,3 @@ tmp/
 .secrets/*.pem
 
 # Manifiestos YAML renderizados (se generan automáticamente)
-infra/rendered/*/
-!infra/rendered/*/.gitkeep

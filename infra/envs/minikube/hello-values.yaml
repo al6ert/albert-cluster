@@ -7,14 +7,5 @@ ingress:
   hosts:
     - host: hello.127.0.0.1.nip.io
 
-# Habilitar SSL/TLS para desarrollo local
-traefik:
-  ingressRoute:
-    enabled: true
-    entryPoints:
-      - web
-      - websecure
-    certResolver: le
-
 app:
   message: "¡Hola desde Minikube!" 

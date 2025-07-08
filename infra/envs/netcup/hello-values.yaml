@@ -1,22 +1,14 @@
 # infra/envs/netcup/hello-values.yaml
 # Valores específicos para la aplicación hello en producción (netcup)
 
-replicaCount: 2
+# infra/envs/minikube/hello-values.yaml
+# Overrides específicos para la aplicación hello en Minikube
+
+replicaCount: 1
 
 ingress:
   hosts:
-    - host: hello.albertperez.dev  # Tu dominio real en producción
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: hello-tls
-      hosts:
-        - hello.albertperez.dev  # Tu dominio real en producción
-
-traefik:
-  ingressRoute:
-    certResolver: le  # Usar Let's Encrypt en producción
+    - host: hello.albertperez.dev  
 
 app:
-  message: "¡Hola desde Netcup!"  # Mensaje específico para producción 
+  message: "¡Hola desde Netcup!" 

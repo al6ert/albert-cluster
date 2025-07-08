@@ -27,6 +27,41 @@ ingressRoute:
       secretName: ""
 
 ##########################
+# OBJETOS EXTRA (Middleware)
+##########################
+extraObjects:
+  # Namespace admin
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: admin
+
+  # SealedSecret para autenticación básica
+  - apiVersion: bitnami.com/v1alpha1
+    kind: SealedSecret
+    metadata:
+      name: admin-basic-auth
+      namespace: admin
+    spec:
+      encryptedData:
+        users: AgAD3cxTP3jRd4QPtTvqViXGxjVy9daz1I+S4Fq3LJvU/ZqFUFtdVuHpdB+KfmGzheGaxMZiYaiwgjsdTIIQxlltW2r36qZQ+n4rUnlr3yzKTXAz4BlRSxeqRiXl/3U+LpAAkwY0BjtD09yQp8OhHrzft2lq7pRLMqPS8g79ozx9/jcXjvSh4x4Y7y7u2+cWOpC3Y/O/Xz4FsJu06RdDI3nafjF7BLH8iGxyM1dUCHVhnPNJxSkj+7mip7IPnekn/jo3dr3qv5O3xaww1Sd8oFgWKgN0gIfT4A2pRjjsYIzfP7BypniAoMUmpwrFYtl0/KKqdTQDOK5ScSpKasBXl4gNmtA+P4gJ4/A/43DRG5EfLJUSCr9stRKV3xy2iU434UNGCjzaXyFu7KK/HKLvTBfAJZhZTgULhHsNQVvWqIIdys6915hGgSbnwwRTbfrHMkvA0FE+h5nbz8qYZfUCSDM5tIxkfSg5dWwSdz4BQCVrT8UrE3i7whqPM/ebZQLR4kYy5dWElTjb99wkz/JLCMMY174GwJdEbiOTpLbWSYfCvU8zeRb6MJgtdGYz1s6GuQjBEEBdRqS/OzGW2+ihwqO2P47dEOPAFCXkwJUCaR5+PeLMPRTxdFnCdyrGkXn0OSw8gzjF6XjVf9/TDIu988F4CuKfivLWnDszQZGKqMbXyB/XNMQXhFDhH5QsovPnACJij1wIEFGZjnRUdv8XjAA5OryWHm86/VPkjH5o3M+ZiXl4Yz/AHbu3Qo24a/as6Chm1lY1eyql4DZPPUUnpxnpuIw12ZoHMvMjv3BVgPRuo0cUTJyIFYVQMzyU75uSgcEeQg+E4MqvMAvueYcUm21MAPcH0TX3N1MjObjxyU+TphhNruXGl+E=
+      template:
+        metadata:
+          name: admin-basic-auth
+          namespace: admin
+
+  # Middleware de autenticación básica
+  - apiVersion: traefik.io/v1alpha1
+    kind: Middleware
+    metadata:
+      name: basic-auth
+      namespace: admin
+    spec:
+      basicAuth:
+        secret: admin-basic-auth
+        realm: "Protected Area"
+
+##########################
 # CONFIGURACIÓN DE SERVICIOS
 ##########################
 service:

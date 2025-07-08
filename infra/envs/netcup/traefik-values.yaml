@@ -2,8 +2,17 @@
 # Valores específicos para producción (netcup)
 
 global:
-  domain: "albertperez.dev"  # Tu dominio real en producción
+  domain: "albertperez.dev"               # tu FQDN real
 
+ingressRoute:
+  dashboard:
+    matchRule: >
+      Host(`traefik.albertperez.dev`)
+      && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
+    tls:
+      secretName: traefik-dashboard-cert   # el cert-manager de prod
+
+# Configuraciones específicas de producción
 persistence:
   enabled: true
   path: /data
@@ -12,14 +21,14 @@ persistence:
 additionalArguments:
   - "--certificatesresolvers.le.acme.httpchallenge=true"
   - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-  - "--certificatesresolvers.le.acme.email=albert@albertperez.dev"  # Email real para Let's Encrypt
+  - "--certificatesresolvers.le.acme.email=albert@albertperez.dev"
   - "--certificatesresolvers.le.acme.storage=/data/acme.json"
-  - "--certificatesresolvers.le.acme.caserver=https://acme-v02.api.letsencrypt.org/directory"  # Producción, no staging
+  - "--certificatesresolvers.le.acme.caserver=https://acme-v02.api.letsencrypt.org/directory"
 
 ports:
   websecure:
     tls:
-      certResolver: "le"  # Usar Let's Encrypt en producción
+      certResolver: "le"
     expose:
       enabled: true
       exposedPort: 443

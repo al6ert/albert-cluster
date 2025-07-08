@@ -1,9 +1,51 @@
 # infra/apps/traefik/values.yaml
 # Valores base para Traefik v3.x
 
+##########################
+# CONFIGURACIÓN GLOBAL
+##########################
 global:
   domain: "example.com"
 
+providers:
+  kubernetesCRD:
+    allowCrossNamespace: true        # Para middleware centralizado
+
+##########################
+# DASHBOARD
+##########################
+ingressRoute:
+  dashboard:
+    enabled: true
+    entryPoints: ["websecure"]
+    # Dominio se inyectará desde la capa env
+    matchRule: >
+      Host(`traefik.example.com`)
+      && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
+    middlewares:
+      - name: basic-auth
+        namespace: admin
+    tls:
+      # secretName viene por overlay; aquí un placeholder
+      secretName: ""
+
+##########################
+# OBJETOS EXTRA (Middleware)
+##########################
+extraObjects:
+  - apiVersion: traefik.io/v1alpha1
+    kind: Middleware
+    metadata:
+      name: basic-auth
+      namespace: admin
+    spec:
+      basicAuth:
+        secret: admin-basic-auth
+        realm: "Protected Area"
+
+##########################
+# CONFIGURACIÓN DE SERVICIOS
+##########################
 service:
   type: LoadBalancer
 
@@ -37,14 +79,4 @@ additionalArguments:
   - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
   - "--certificatesresolvers.le.acme.email=albert@albertperez.dev"
   - "--certificatesresolvers.le.acme.storage=/data/acme.json"
-  - "--certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
-
-ingressRoute:
-  dashboard:
-    enabled: true
-    annotations:
-      kubernetes.io/ingress.class: traefik
-    entryPoints: ["web", "websecure"]
-    matchRule: >
-      Host(`traefik.{{ .Values.global.domain }}`)
-      && (PathPrefix(`/dashboard`) || PathPrefix(`/api`)) 
+  - "--certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory" 

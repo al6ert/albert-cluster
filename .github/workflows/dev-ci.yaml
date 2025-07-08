@@ -1,10 +1,10 @@
-name: CI
+name: Dev CI
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
   pull_request:
-    branches: [main]
+    branches: [dev]
   workflow_dispatch:
 
 permissions:
@@ -38,34 +38,24 @@ jobs:
           mv helmfile /usr/local/bin/
           chmod +x /usr/local/bin/helmfile
 
-      - name: Render manifests for netcup (main branch)
+      - name: Render manifests for minikube (dev branch)
         run: |
-          echo "Rendering netcup manifests for main branch..."
+          echo "Rendering minikube manifests for dev branch..."
           cd infra/apps
-          mkdir -p ../rendered/netcup
-          helmfile --environment netcup template > ../rendered/netcup/all.yaml
-          echo "✅ Netcup manifests rendered successfully"
+          mkdir -p ../rendered/minikube
+          helmfile --environment minikube template > ../rendered/minikube/all.yaml
+          echo "✅ Minikube manifests rendered successfully"
 
-      - name: Validate YAML syntax for netcup
+      - name: Validate YAML syntax for minikube
         run: |
-          echo "Validating YAML syntax for netcup..."
-          python3 -c "import yaml; list(yaml.safe_load_all(open('infra/rendered/netcup/all.yaml'))); print('✅ Netcup YAML syntax is valid')"
-          echo "✅ YAML validation passed for netcup"
-
-  deploy:
-    needs: validate
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          echo "Validating YAML syntax for minikube..."
+          python3 -c "import yaml; list(yaml.safe_load_all(open('infra/rendered/minikube/all.yaml'))); print('✅ Minikube YAML syntax is valid')"
+          echo "✅ YAML validation passed for minikube"
 
       - name: Commit rendered manifests
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add infra/rendered/netcup
-          git commit -m "ci: render netcup manifests $(date +%F-%T)" || echo "No changes to commit"
-          git push
+          git add infra/rendered/minikube
+          git commit -m "ci: render minikube manifests $(date +%F-%T)" || echo "No changes to commit"
+          git push 

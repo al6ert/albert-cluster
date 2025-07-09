@@ -10,7 +10,8 @@ on:
 permissions:
   contents: write      # necesario para crear ramas y PRs
   pull-requests: write # necesario para abrir / actualizar el PR
-
+  issues: write          # crear la etiqueta si no existe
+  
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

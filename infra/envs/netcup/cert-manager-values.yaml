@@ -1,7 +1,4 @@
-# infra/envs/netcup/cert-manager-values.yaml
-# Overrides específicos para cert-manager en producción
-certmanager:
-  email: "admin@albertperez.dev"
+
 
 extraObjects:
   # ClusterIssuer Let's Encrypt usando Cloudflare DNS

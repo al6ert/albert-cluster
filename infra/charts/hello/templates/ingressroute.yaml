@@ -18,5 +18,8 @@ spec:
   {{- if .Values.traefik.ingressRoute.certResolver }}
   tls:
     certResolver: {{ .Values.traefik.ingressRoute.certResolver }}
+  {{- else if .Values.traefik.ingressRoute.tlsSecret }}
+  tls:
+    secretName: {{ .Values.traefik.ingressRoute.tlsSecret }}
   {{- end }}
 {{- end }} 

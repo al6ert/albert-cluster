@@ -7,5 +7,10 @@ ingress:
   hosts:
     - host: hello.127.0.0.1.nip.io
 
+# Configuración de Traefik para usar el certificado wildcard
+traefik:
+  ingressRoute:
+    tlsSecret: wildcard-minikube-tls
+
 app:
   message: "¡Hola desde Minikube!" 

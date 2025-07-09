@@ -3,7 +3,8 @@
 
 extraObjects:
   # ClusterIssuer que genera un CA auto firmado
-  - apiVersion: cert-manager.io/v1
+  - |
+    apiVersion: cert-manager.io/v1
     kind: ClusterIssuer
     metadata:
       name: selfsigned
@@ -11,7 +12,8 @@ extraObjects:
       selfSigned: {}
 
   # Certificado CA usando el issuer selfsigned
-  - apiVersion: cert-manager.io/v1
+  - |
+    apiVersion: cert-manager.io/v1
     kind: Certificate
     metadata:
       name: local-ca
@@ -25,7 +27,8 @@ extraObjects:
         kind: ClusterIssuer
 
   # ClusterIssuer que usa el CA generado previamente
-  - apiVersion: cert-manager.io/v1
+  - |
+    apiVersion: cert-manager.io/v1
     kind: ClusterIssuer
     metadata:
       name: local-ca-issuer
@@ -34,7 +37,8 @@ extraObjects:
         secretName: local-ca
 
   # Certificado wildcard para el entorno local
-  - apiVersion: cert-manager.io/v1
+  - |
+    apiVersion: cert-manager.io/v1
     kind: Certificate
     metadata:
       name: wildcard-minikube

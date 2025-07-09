@@ -17,7 +17,7 @@ concurrency:
 
 env:
   HELM_VERSION: v3.18.3
-  HELMFILE_VERSION: v1.1.2
+  HELMFILE_VERSION: v0.170.1
   YQ_VERSION: v4.40.5
 
 ########################

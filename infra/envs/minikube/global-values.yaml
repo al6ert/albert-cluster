@@ -19,3 +19,7 @@ resources:
   requests:
     cpu: "100m"
     memory: "128Mi" 
+
+certmanager:
+  env: dev
+  email: admin@albertperez.dev    

@@ -21,10 +21,10 @@ ingressRoute:
     # Dominio se inyectará desde la capa env
     matchRule: >
       Host(`traefik.example.com`)
-      && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
-    tls:
-      # secretName viene por overlay; aquí un placeholder
-      secretName: ""
+      && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))    
+    middlewares:
+      - name: basic-auth
+        namespace: admin      
 
 ##########################
 # OBJETOS EXTRA (Middleware)
@@ -72,9 +72,7 @@ persistence:
   path: /data
   size: 128Mi
 
-additionalArguments:
-  - "--certificatesresolvers.le.acme.httpchallenge=true"
-  - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-  - "--certificatesresolvers.le.acme.email=albert@albertperez.dev"
-  - "--certificatesresolvers.le.acme.storage=/data/acme.json"
-  - "--certificatesresolvers.le.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory" 
+tlsStore:
+  default:
+    defaultCertificate:
+      secretName: "wildcard-{{ .Environment.Name }}-tls"

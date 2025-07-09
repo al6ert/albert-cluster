@@ -1,3 +1,12 @@
+environments:
+  minikube: {}
+  netcup: {}
+
+---
+repositories:
+  - name: traefik
+    url: https://traefik.github.io/charts 
+
 releases:
   - name: traefik
     namespace: traefik
@@ -11,6 +20,3 @@ releases:
     timeout: 300
     atomic: true
 
-repositories:
-  - name: traefik
-    url: https://traefik.github.io/charts 

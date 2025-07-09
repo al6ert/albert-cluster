@@ -434,6 +434,5 @@ spec:
       services:
         - name: hello
           port: 80
-  tls:
-    certResolver: le
+
 

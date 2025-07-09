@@ -38,10 +38,8 @@ ingress:
 traefik:
   ingressRoute:
     enabled: true
-    entryPoints:
-      - web
-      - websecure
-    certResolver: le
+    entryPoints:      
+      - websecure    
   
   httpIngressRoute:
     enabled: false

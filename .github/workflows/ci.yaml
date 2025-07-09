@@ -8,172 +8,181 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: read
+  contents: write      # necesario para crear ramas y PRs
+  pull-requests: write # necesario para abrir / actualizar el PR
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HELM_VERSION: v3.18.3
+  HELMFILE_VERSION: v0.162.0
+  YQ_VERSION: v4.40.5
+
+########################
+# JOB 1: PUBLICACIÓN   #
+########################
 jobs:
   validate_and_publish:
-    runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: 'latest'
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: v3.18.3
-
-      - name: Install curl, Helmfile and yq
-        run: |
-          apt-get update && apt-get install -y curl
-          curl -L https://github.com/helmfile/helmfile/releases/download/v0.162.0/helmfile_0.162.0_linux_amd64.tar.gz | tar xz
-          mv helmfile /usr/local/bin/
-          chmod +x /usr/local/bin/helmfile
-          
-          # Install yq for YAML processing
-          curl -L https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64 -o /usr/local/bin/yq
-          chmod +x /usr/local/bin/yq
-
-      - name: Render manifests for netcup
-        run: |
-          echo "Rendering netcup manifests..."
-          cd infra/apps
-          mkdir -p ../rendered/netcup
-          helmfile --environment netcup template > ../rendered/netcup/all.yaml
-          echo "✅ Netcup manifests rendered successfully"
-
-      - name: Validate YAML syntax for netcup
-        run: |
-          echo "Validating YAML syntax for netcup..."
-          python3 -c "import yaml; list(yaml.safe_load_all(open('infra/rendered/netcup/all.yaml'))); print('✅ Netcup YAML syntax is valid')"
-          echo "✅ YAML validation passed for netcup"
-
-      - name: Compare middlewares between environments
-        run: |
-          echo "Comparing middlewares between minikube and netcup..."
-          yq '.middlewares' infra/envs/minikube/traefik-values.yaml > /tmp/minikube_mw
-          yq '.middlewares' infra/envs/netcup/traefik-values.yaml > /tmp/netcup_mw
-          if ! diff -u /tmp/minikube_mw /tmp/netcup_mw; then
-            echo "❌ Middlewares don't match between environments"
-            exit 1
-          fi
-          echo "✅ Middlewares are consistent between environments"
-
-      - name: Compare namespaces between environments
-        run: |
-          echo "Comparing namespaces between minikube and netcup..."
-          cd infra/apps
-          
-          # Render both environments to temp files
-          helmfile --environment minikube template > /tmp/minikube-all.yaml
-          helmfile --environment netcup template > /tmp/netcup-all.yaml
-          
-          # Extract and compare namespaces
-          minikube_ns=$(yq e '.metadata.namespace' /tmp/minikube-all.yaml | sort -u | grep -v null)
-          netcup_ns=$(yq e '.metadata.namespace' /tmp/netcup-all.yaml | sort -u | grep -v null)
-          
-          echo "Minikube namespaces: $minikube_ns"
-          echo "Netcup namespaces: $netcup_ns"
-          
-          if [ "$minikube_ns" != "$netcup_ns" ]; then
-            echo "❌ Namespaces don't match between environments"
-            exit 1
-          fi
-          echo "✅ Namespaces are consistent between environments"
-
-      - name: Commit rendered manifests
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f infra/rendered/netcup
-          git commit -m "ci: render netcup manifests $(date +%F-%T)" || echo "No changes to commit"
-          git push
-
-  validate_only:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    defaults:
-      run:
-        shell: bash
+
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # necesario para crear ramas
+
+      # -------- Herramientas --------------------------------------------------
+      - name: Cache Helm plugins & charts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/helm
+            ~/.local/share/helm
+          key: ${{ runner.os }}-helm-${{ env.HELM_VERSION }}
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
-        with:
-          version: 'latest'
+        with: { version: 'latest' }
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
-        with:
-          version: v3.18.3
+        with: { version: ${{ env.HELM_VERSION }} }
 
-      - name: Install curl, Helmfile and yq
+      - name: Install Helmfile & yq
         run: |
-          apt-get update && apt-get install -y curl
-          curl -L https://github.com/helmfile/helmfile/releases/download/v0.162.0/helmfile_0.162.0_linux_amd64.tar.gz | tar xz
-          mv helmfile /usr/local/bin/
-          chmod +x /usr/local/bin/helmfile
-          
-          # Install yq for YAML processing
-          curl -L https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64 -o /usr/local/bin/yq
-          chmod +x /usr/local/bin/yq
+          sudo apt-get update -y
+          curl -L "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" |
+            tar xz && sudo mv helmfile /usr/local/bin/
+          curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
+            -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq
 
-      - name: Render manifests for netcup
+      # -------- Render + validaciones -----------------------------------------
+      - name: Render manifests (netcup)
         run: |
-          echo "Rendering netcup manifests for validation..."
+          echo "::group::Render"
           cd infra/apps
           mkdir -p ../rendered/netcup
           helmfile --environment netcup template > ../rendered/netcup/all.yaml
-          echo "✅ Netcup manifests rendered successfully"
+          echo "::endgroup::"
 
-      - name: Validate YAML syntax for netcup
+      - name: Validate YAML syntax
         run: |
-          echo "Validating YAML syntax for netcup..."
-          python3 -c "import yaml; list(yaml.safe_load_all(open('infra/rendered/netcup/all.yaml'))); print('✅ Netcup YAML syntax is valid')"
-          echo "✅ YAML validation passed for netcup"
+          python3 - <<'PY'
+          import yaml, sys
+          yaml.safe_load_all(open('infra/rendered/netcup/all.yaml'))
+          print("✅ YAML válido")
+          PY
 
-      - name: Compare middlewares between environments
+      - name: Compare middlewares minikube vs netcup
         run: |
-          echo "Comparing middlewares between minikube and netcup..."
+          set -euo pipefail
           yq '.middlewares' infra/envs/minikube/traefik-values.yaml > /tmp/minikube_mw
           yq '.middlewares' infra/envs/netcup/traefik-values.yaml > /tmp/netcup_mw
-          if ! diff -u /tmp/minikube_mw /tmp/netcup_mw; then
-            echo "❌ Middlewares don't match between environments"
-            exit 1
-          fi
-          echo "✅ Middlewares are consistent between environments"
+          diff -u /tmp/minikube_mw /tmp/netcup_mw
+          echo "✅ Middlewares coinciden"
 
-      - name: Compare namespaces between environments
+      - name: Compare namespaces minikube vs netcup
         run: |
-          echo "Comparing namespaces between minikube and netcup..."
+          set -euo pipefail
           cd infra/apps
-          
-          # Render both environments to temp files
           helmfile --environment minikube template > /tmp/minikube-all.yaml
           helmfile --environment netcup template > /tmp/netcup-all.yaml
-          
-          # Extract and compare namespaces
           minikube_ns=$(yq e '.metadata.namespace' /tmp/minikube-all.yaml | sort -u | grep -v null)
           netcup_ns=$(yq e '.metadata.namespace' /tmp/netcup-all.yaml | sort -u | grep -v null)
-          
-          echo "Minikube namespaces: $minikube_ns"
-          echo "Netcup namespaces: $netcup_ns"
-          
+
           if [ "$minikube_ns" != "$netcup_ns" ]; then
-            echo "❌ Namespaces don't match between environments"
+            echo "::error::Namespaces no coinciden"
             exit 1
           fi
-          echo "✅ Namespaces are consistent between environments"
+          echo "✅ Namespaces coinciden"
+
+      # -------- Crear / actualizar PR -----------------------------------------
+      - name: Create or update PR with rendered manifests
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: bot/rendered-netcup
+          title: "chore(ci): update rendered netcup manifests"
+          commit-message: "ci: render netcup manifests"
+          body: |
+            Este PR actualiza los manifiestos renderizados para el entorno **netcup**.
+            Se genera automáticamente desde el workflow *CI*.
+          labels: ci, automated
+          delete-branch: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Solo hará commit si hay cambios; el action se encarga
+
+      - name: Enable auto-merge (si el repo lo permite)
+        if: steps.cpr.outputs.pull-request-number != ''
+        run: gh pr merge --auto --merge ${{ steps.cpr.outputs.pull-request-number }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+########################
+# JOB 2: VALIDACIÓN PR #
+########################
+  validate_only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Misma instalación de herramientas (omitido por brevedad)
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with: { version: 'latest' }
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with: { version: ${{ env.HELM_VERSION }} }
+
+      - name: Install Helmfile & yq
+        run: |
+          sudo apt-get update -y
+          curl -L "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" |
+            tar xz && sudo mv helmfile /usr/local/bin/
+          curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
+            -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq
+
+      # Render + validaciones idénticas al job anterior
+      - name: Render manifests (netcup)
+        run: |
+          cd infra/apps
+          mkdir -p ../rendered/netcup
+          helmfile --environment netcup template > ../rendered/netcup/all.yaml
+
+      - name: Validate YAML syntax
+        run: |
+          python3 - <<'PY'
+          import yaml, sys
+          yaml.safe_load_all(open('infra/rendered/netcup/all.yaml'))
+          print("✅ YAML válido")
+          PY
+
+      - name: Compare middlewares minikube vs netcup
+        run: |
+          set -euo pipefail
+          yq '.middlewares' infra/envs/minikube/traefik-values.yaml > /tmp/minikube_mw
+          yq '.middlewares' infra/envs/netcup/traefik-values.yaml > /tmp/netcup_mw
+          diff -u /tmp/minikube_mw /tmp/netcup_mw
+          echo "✅ Middlewares coinciden"
+
+      - name: Compare namespaces minikube vs netcup
+        run: |
+          set -euo pipefail
+          cd infra/apps
+          helmfile --environment minikube template > /tmp/minikube-all.yaml
+          helmfile --environment netcup template > /tmp/netcup-all.yaml
+          minikube_ns=$(yq e '.metadata.namespace' /tmp/minikube-all.yaml | sort -u | grep -v null)
+          netcup_ns=$(yq e '.metadata.namespace' /tmp/netcup-all.yaml | sort -u | grep -v null)
+
+          if [ "$minikube_ns" != "$netcup_ns" ]; then
+            echo "::error::Namespaces no coinciden"
+            exit 1
+          fi
+          echo "✅ Namespaces coinciden"

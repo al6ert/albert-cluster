@@ -4,44 +4,16 @@
 global:
   domain: "albertperez.dev"               # tu FQDN real
 
+# tlsStore:
+#   default:
+#     defaultCertificate:
+#       secretName: "wildcard-netcup-tls"   # el Secret creado por cert-manager
+
 ingressRoute:
   dashboard:
     matchRule: >
       Host(`traefik.albertperez.dev`)
       && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
-    middlewares:
-      - name: basic-auth
-        namespace: admin
-    tls:
-      secretName: traefik-dashboard-cert   # el cert-manager de prod
-
-# Configuraciones específicas de producción
-persistence:
-  enabled: true
-  path: /data
-  size: 128Mi
-
-additionalArguments:
-  - "--certificatesresolvers.le.acme.httpchallenge=true"
-  - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
-  - "--certificatesresolvers.le.acme.email=albert@albertperez.dev"
-  - "--certificatesresolvers.le.acme.storage=/data/acme.json"
-  - "--certificatesresolvers.le.acme.caserver=https://acme-v02.api.letsencrypt.org/directory"
-
-# Configuración de autenticación básica
-extraObjects:
-  - apiVersion: v1
-    kind: Namespace
-    metadata:
-      name: admin
-      labels:
-        name: admin
-  - apiVersion: traefik.io/v1alpha1
-    kind: Middleware
-    metadata:
-      name: basic-auth
-      namespace: admin
-    spec:
-      basicAuth:
-        secret: admin-basic-auth
-        realm: "Protected Area"
+    # middlewares:
+    #   - name: basic-auth
+    #     namespace: admin

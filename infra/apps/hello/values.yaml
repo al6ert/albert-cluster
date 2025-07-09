@@ -17,14 +17,12 @@ ingress:
   enabled: true
   className: traefik
   hosts:
-    - host: hello.example.com
+    - host: hello.{{ .Environment.Values.network.domain }}
       paths:
         - path: /
           pathType: Prefix
-  entryPoints:
-    - web
-    - websecure
-  certResolver: le      
+  entryPoints:    
+    - websecure    
 
 app:
   message: "¡Hola desde el cluster!" 

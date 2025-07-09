@@ -2,24 +2,37 @@ name: Dev CI
 
 on:
   push:
-    branches: [dev]
+    branches: [dev]          # ← sigue construyendo en cada push a dev
   pull_request:
-    branches: [dev]
+    branches: [dev]          # …y en los PR contra dev
   workflow_dispatch:
 
+# ⬇️ ya no vamos a hacer commits desde el job, así que basta con permisos de lectura
 permissions:
-  contents: write
+  contents: read
   pull-requests: read
+
+env:
+  HELM_VERSION: v3.18.3
+  HELMFILE_VERSION: v0.162.0
+  YQ_VERSION: v4.40.5
 
 jobs:
   validate:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
+
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
+
+      # -------- Herramientas --------------------------------------------------
+      - name: Cache Helm plugins & charts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/helm
+            ~/.local/share/helm
+          key: ${{ runner.os }}-helm-${{ env.HELM_VERSION }}
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
@@ -29,33 +42,61 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v4
         with:
-          version: v3.18.3
+          version: ${{ env.HELM_VERSION }}
 
-      - name: Install curl and Helmfile
+      - name: Install Helmfile & yq
         run: |
-          apt-get update && apt-get install -y curl
-          curl -L https://github.com/helmfile/helmfile/releases/download/v0.162.0/helmfile_0.162.0_linux_amd64.tar.gz | tar xz
-          mv helmfile /usr/local/bin/
-          chmod +x /usr/local/bin/helmfile
+          sudo apt-get update -y
+          curl -L "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" |
+            tar xz && sudo mv helmfile /usr/local/bin/
+          curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
+            -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq
 
-      - name: Render manifests for minikube (dev branch)
+      # -------- Render + validaciones -----------------------------------------
+      - name: Render manifests (minikube)
         run: |
-          echo "Rendering minikube manifests for dev branch..."
+          echo "::group::Render"
           cd infra/apps
           mkdir -p ../rendered/minikube
           helmfile --environment minikube template > ../rendered/minikube/all.yaml
-          echo "✅ Minikube manifests rendered successfully"
+          echo "::endgroup::"
 
       - name: Validate YAML syntax for minikube
         run: |
           echo "Validating YAML syntax for minikube..."
-          python3 -c "import yaml; list(yaml.safe_load_all(open('infra/rendered/minikube/all.yaml'))); print('✅ Minikube YAML syntax is valid')"
-          echo "✅ YAML validation passed for minikube"
+          python3 - <<'PY'
+import yaml, sys
+with open('infra/rendered/minikube/all.yaml') as f:
+    list(yaml.safe_load_all(f))
+print("✅ YAML validation passed")
+PY
 
-      - name: Commit rendered manifests
+      - name: Compare middlewares minikube vs netcup
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add infra/rendered/minikube
-          git commit -m "ci: render minikube manifests $(date +%F-%T)" || echo "No changes to commit"
-          git push 
+          set -euo pipefail
+          yq '.middlewares' infra/envs/minikube/traefik-values.yaml > /tmp/minikube_mw
+          yq '.middlewares' infra/envs/netcup/traefik-values.yaml > /tmp/netcup_mw
+          diff -u /tmp/minikube_mw /tmp/netcup_mw
+          echo "✅ Middlewares coinciden"
+
+      - name: Compare namespaces minikube vs netcup
+        run: |
+          set -euo pipefail
+          cd infra/apps
+          helmfile --environment minikube template > /tmp/minikube-all.yaml
+          helmfile --environment netcup template > /tmp/netcup-all.yaml
+          minikube_ns=$(yq e '.metadata.namespace' /tmp/minikube-all.yaml | sort -u | grep -v null)
+          netcup_ns=$(yq e '.metadata.namespace' /tmp/netcup-all.yaml | sort -u | grep -v null)
+
+          if [ "$minikube_ns" != "$netcup_ns" ]; then
+            echo "::error::Namespaces no coinciden"
+            exit 1
+          fi
+          echo "✅ Namespaces coinciden"
+
+      # -------- Artefacto en lugar de commit ---------------------------------
+      - name: Upload rendered manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: minikube-rendered
+          path: infra/rendered/minikube 

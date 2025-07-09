@@ -1,14 +1,16 @@
 # infra/envs/netcup/hello-values.yaml
 # Valores específicos para la aplicación hello en producción (netcup)
 
-# infra/envs/minikube/hello-values.yaml
-# Overrides específicos para la aplicación hello en Minikube
-
 replicaCount: 1
 
 ingress:
   hosts:
-    - host: hello.albertperez.dev  
+    - host: hello.albertperez.dev
+
+# Configuración de Traefik para usar el certificado wildcard de producción
+traefik:
+  ingressRoute:
+    tlsSecret: wildcard-netcup-tls
 
 app:
   message: "¡Hola desde Netcup!" 

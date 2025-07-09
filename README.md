@@ -22,6 +22,9 @@ Helmfile (render) → YAML plano → ArgoCD (deploy)
 │   │   ├── hello/
 │   │   │   ├── helmfile.yaml
 │   │   │   └── values.yaml
+│   │   ├── cert-manager/
+│   │   │   ├── helmfile.yaml
+│   │   │   └── values.yaml
 │   │   └── traefik/
 │   │       ├── helmfile.yaml
 │   │       └── values.yaml

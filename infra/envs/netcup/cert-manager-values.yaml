@@ -1,5 +1,7 @@
 # infra/envs/netcup/cert-manager-values.yaml
 # Overrides específicos para cert-manager en producción
+certmanager:
+  email: "admin@albertperez.dev"
 
 extraObjects:
   # ClusterIssuer Let's Encrypt usando Cloudflare DNS
@@ -10,14 +12,14 @@ extraObjects:
       name: letsencrypt-prod
     spec:
       acme:
-        email: "{{ .Environment.Values.certmanager.email }}"
+        email: "{{ .Values.certmanager.email }}"
         server: https://acme-v02.api.letsencrypt.org/directory
         privateKeySecretRef:
           name: letsencrypt-prod
         solvers:
           - dns01:
               cloudflare:
-                email: "{{ .Environment.Values.certmanager.email }}"
+                email: "{{ .Values.certmanager.email }}"
                 apiTokenSecretRef:
                   name: cloudflare-api-token
                   key: api-token

@@ -39,10 +39,11 @@ jobs:
         with:
           version: 'latest'
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
+      - name: Set up Helmfile
+        uses: mamezou-tech/setup-helmfile@v2.1.0   # ✅ tag real
         with:
-          version: ${{ env.HELM_VERSION }}
+          helmfile-version: ${{ env.HELMFILE_VERSION }}              # opcional, el default ya es este
+          install-helm: "no" 
 
       - name: Install Helmfile & yq
         run: |

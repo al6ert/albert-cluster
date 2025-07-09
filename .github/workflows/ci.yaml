@@ -54,9 +54,10 @@ jobs:
           version: ${{ env.HELM_VERSION }}
 
       - name: Set up Helmfile
-        uses: mamezou-tech/setup-helmfile@v1
+        uses: mamezou-tech/setup-helmfile@v2.1.0   # ✅ tag real
         with:
-          helmfile-version: v0.162.0
+          helmfile-version: ${{ env.HELMFILE_VERSION }}              # opcional, el default ya es este
+          install-helm: "no" 
 
       - name: Install yq
         run: |

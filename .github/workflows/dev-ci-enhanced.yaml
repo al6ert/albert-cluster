@@ -1,0 +1,166 @@
+name: Dev CI Enhanced
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+env:
+  HELM_VERSION: v3.18.3
+  HELMFILE_VERSION: v0.162.0
+  YQ_VERSION: v4.40.5
+
+jobs:
+  build-test-dev:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # -------- Herramientas --------------------------------------------------
+      - name: Cache Helm plugins & charts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/helm
+            ~/.local/share/helm
+          key: ${{ runner.os }}-helm-${{ env.HELM_VERSION }}
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'latest'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Install Helmfile & yq
+        run: |
+          sudo apt-get update -y
+          curl -L "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" |
+            tar xz && sudo mv helmfile /usr/local/bin/
+          curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
+            -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq
+
+      # -------- Setup Minikube --------------------------------------------------
+      - name: Cache Minikube
+        uses: actions/cache@v4
+        with:
+          path: ~/.minikube/cache/
+          key: ${{ runner.os }}-minikube-cache-${{ github.sha }}
+
+      - name: Setup Minikube
+        uses: medyagh/setup-minikube@v0.0.15
+        with:
+          driver: docker
+          kubernetes-version: v1.29.2
+          profile: minikube-${{ github.sha }}
+
+      - name: Configure Minikube profile
+        run: |
+          minikube profile minikube-${{ github.sha }}
+          minikube addons disable ingress
+          minikube addons disable storage-provisioner
+
+      # -------- Validación y Linting -----------------------------------------
+      - name: Render manifests (minikube)
+        run: |
+          echo "::group::Render"
+          cd infra/apps
+          mkdir -p ../rendered/minikube
+          helmfile --environment minikube template > ../rendered/minikube/all.yaml
+          echo "::endgroup::"
+
+      - name: Validate YAML syntax
+        run: |
+          python3 - <<'PY'
+          import yaml, sys
+          yaml.safe_load_all(open('infra/rendered/minikube/all.yaml'))
+          print("✅ YAML válido")
+          PY
+
+      - name: Helmfile lint
+        run: |
+          cd infra/apps
+          helmfile --environment minikube lint
+
+      - name: Helmfile diff (check for destructive changes)
+        run: |
+          cd infra/apps
+          helmfile --environment minikube diff --exit-code 0 || {
+            echo "::error::Detected destructive changes in Helmfile diff"
+            echo "Please review the changes above and ensure they are safe"
+            exit 1
+          }
+
+      # -------- Despliegue y Tests de Humo -----------------------------------
+      - name: Deploy to Minikube
+        run: |
+          cd infra/apps
+          helmfile --environment minikube apply --suppress-secrets
+
+      - name: Wait for pods to be ready
+        run: |
+          kubectl wait pod --all -A --for=condition=Ready --timeout=300s
+
+      - name: Check for crashloops
+        run: |
+          CRASHED_PODS=$(kubectl get pods --all-namespaces --field-selector=status.phase!=Running -o jsonpath='{.items[*].metadata.name}')
+          if [ -n "$CRASHED_PODS" ]; then
+            echo "::error::Found pods not in Running state:"
+            kubectl get pods --all-namespaces --field-selector=status.phase!=Running
+            exit 1
+          fi
+          echo "✅ All pods are running"
+
+      - name: Smoke tests
+        run: |
+          # Test 1: Hello app should return 200
+          echo "Testing hello app..."
+          kubectl port-forward svc/hello 8080:80 -n traefik &
+          sleep 5
+          curl -f http://localhost:8080/ || {
+            echo "::error::Hello app not responding"
+            exit 1
+          }
+          pkill -f "kubectl port-forward"
+
+          # Test 2: Traefik dashboard should require auth (401)
+          echo "Testing Traefik dashboard auth..."
+          kubectl port-forward svc/traefik 8080:9000 -n traefik &
+          sleep 5
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/dashboard/)
+          if [ "$HTTP_CODE" != "401" ]; then
+            echo "::error::Traefik dashboard should return 401 (auth required), got $HTTP_CODE"
+            exit 1
+          fi
+          pkill -f "kubectl port-forward"
+
+          echo "✅ All smoke tests passed"
+
+      # -------- Limpieza -----------------------------------------------------
+      - name: Cleanup Minikube
+        if: always()
+        run: |
+          minikube delete -p minikube-${{ github.sha }}
+
+      # -------- Commit rendered manifests ------------------------------------
+      - name: Commit rendered manifests
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add infra/rendered/minikube
+          git commit -m "ci: render minikube manifests $(date +%F-%T)" || echo "No changes to commit"
+          git push 

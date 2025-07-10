@@ -16,6 +16,7 @@ releases:
     labels:
       crd: "true"
     values:
+      - installCRDs: true
       - values.yaml
       - ../../envs/{{ .Environment.Name }}/cert-manager-values.yaml
     wait: true

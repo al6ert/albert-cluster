@@ -95,6 +95,13 @@ jobs:
           print("✅ YAML válido")
           PY
 
+      - name: Bootstrap CRDs
+        run: |
+          echo "Installing CRDs for cert-manager and traefik..."
+          kubectl apply -f infra/bootstrap/crds/cert-manager-CRDs.yaml
+          kubectl apply -f infra/bootstrap/crds/traefik-crds.yaml
+          echo "✅ CRDs installed successfully"
+
       - name: Helmfile lint
         run: |
           cd infra/apps

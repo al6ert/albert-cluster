@@ -47,9 +47,11 @@ jobs:
           version: ${{ env.HELM_VERSION }}
 
       - name: Install Helmfile
-        uses: helmfile/helmfile-action@v0.1.0
+        uses: helmfile/helmfile-action@v2.0.4
         with:
-          version: ${{ env.HELMFILE_VERSION }}
+          helmfile-version: ${{ env.HELMFILE_VERSION }}
+          helm-version: ${{ env.HELM_VERSION }}
+          helmfile-args: version
 
       - name: Install yq
         run: |

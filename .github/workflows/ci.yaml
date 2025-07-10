@@ -17,7 +17,7 @@ concurrency:
 
 env:
   HELM_VERSION: v3.18.3
-  HELMFILE_VERSION: v0.162.0
+  HELMFILE_VERSION: v1.1.2
   YQ_VERSION: v4.40.5
 
 ########################
@@ -110,7 +110,7 @@ jobs:
         run: |
           cd infra/apps
           echo "Installing CRDs for cert-manager and traefik..."
-          helmfile --environment minikube --selector crd=true sync --include-crds --skip-deps
+          helmfile --environment minikube --selector crd=true sync --skip-deps
           echo "✅ CRDs installed successfully"
 
       - name: Deploy and test in Minikube

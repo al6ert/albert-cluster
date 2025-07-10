@@ -100,14 +100,24 @@ jobs:
           cd infra/apps
           helmfile --environment minikube lint
 
-      - name: Helmfile diff (check for destructive changes)
+      - name: Helmfile diff (fail on destructive changes)
         run: |
           cd infra/apps
-          helmfile --environment minikube diff --exit-code 0 || {
-            echo "::error::Detected destructive changes in Helmfile diff"
-            echo "Please review the changes above and ensure they are safe"
+          helmfile --environment minikube diff --detailed-exitcode --no-color > diff.log || status=$?
+          if [ "$status" = 2 ] && grep -qE 'REMOVED|DELETED' diff.log; then
+            echo "::error::Helmfile diff contiene eliminaciones destructivas"
+            echo "::group::Diff log"
+            cat diff.log
+            echo "::endgroup::"
             exit 1
-          }
+          elif [ "$status" -ne 0 ]; then
+            echo "::error::Helmfile diff failed with status $status"
+            echo "::group::Diff log"
+            cat diff.log
+            echo "::endgroup::"
+            exit $status
+          fi
+          echo "✅ Helmfile diff passed - no destructive changes detected"
 
       # -------- Despliegue y Tests de Humo -----------------------------------
       - name: Deploy to Minikube

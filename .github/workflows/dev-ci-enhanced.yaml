@@ -95,12 +95,18 @@ jobs:
           print("✅ YAML válido")
           PY
 
-      - name: Bootstrap CRDs
+      - name: Bootstrap CRDs (cert-manager y Traefik)
         run: |
           cd infra/apps
-          echo "Installing CRDs for cert-manager and traefik..."
-          helmfile --environment minikube --selector crd=true sync --skip-deps
-          echo "✅ CRDs installed successfully"
+
+          # Renderiza SÓLO los CRDs de los charts etiquetados con crd=true
+          #  - --include-crds: incluye los CRDs en la plantilla
+          #  - yq: filtra únicamente "kind: CustomResourceDefinition"
+          helmfile -l crd=true --environment minikube template --include-crds \
+            | yq eval 'select(.kind == "CustomResourceDefinition")' - \
+            | kubectl apply -f -
+
+          echo "✅ CRDs instalados en el cluster"
 
       - name: Helmfile lint
         run: |

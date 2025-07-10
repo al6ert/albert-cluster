@@ -107,10 +107,13 @@ jobs:
             | kubectl apply -f -
 
           echo "⏳ Esperando a que los CRDs estén Established…"
-          kubectl wait crd \
-            --all \
-            --for=condition=Established \
-            --timeout=60s
+          kubectl wait --for=condition=Established --timeout=60s crd \
+            certificates.cert-manager.io certificaterequests.cert-manager.io \
+            clusterissuers.cert-manager.io issuers.cert-manager.io \
+            ingressroutes.traefik.io ingressroutetcps.traefik.io \
+            ingressrouteudps.traefik.io middlewaretcps.traefik.io \
+            traefikservices.traefik.io serverstransports.traefik.io
+          echo "✅ CRDs listos"
 
           echo "✅ CRDs instalados en el cluster"
 

@@ -46,15 +46,13 @@ jobs:
         with:
           version: ${{ env.HELM_VERSION }}
 
-      - name: Install Helmfile & yq
+      - name: Install Helmfile
+        uses: helmfile/helmfile-action@v0.1.0
+        with:
+          version: ${{ env.HELMFILE_VERSION }}
+
+      - name: Install yq
         run: |
-          sudo apt-get update -y
-
-          # Helmfile
-          curl -sSL "https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" \
-            | tar -xz && sudo mv helmfile /usr/local/bin/
-
-          # yq
           curl -sSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
             -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq
 

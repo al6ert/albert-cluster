@@ -13,6 +13,8 @@ releases:
     createNamespace: true
     chart: jetstack/cert-manager
     version: v1.18.2
+    labels:
+      crd: "true"
     values:
       - values.yaml
       - ../../envs/{{ .Environment.Name }}/cert-manager-values.yaml

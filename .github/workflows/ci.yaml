@@ -106,6 +106,13 @@ jobs:
           kubernetes-version: v1.29.2
           profile: minikube-${{ github.sha }}
 
+      - name: Bootstrap CRDs
+        run: |
+          cd infra/apps
+          echo "Installing CRDs for cert-manager and traefik..."
+          helmfile --environment minikube --selector crd=true sync --include-crds --skip-deps
+          echo "✅ CRDs installed successfully"
+
       - name: Deploy and test in Minikube
         run: |
           cd infra/apps

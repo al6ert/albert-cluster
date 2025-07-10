@@ -13,6 +13,8 @@ releases:
     createNamespace: true
     chart: traefik/traefik
     version: 36.3.0
+    labels:
+      crd: "true"
     values:
       - values.yaml
       - ../../envs/{{ .Environment.Name }}/traefik-values.yaml

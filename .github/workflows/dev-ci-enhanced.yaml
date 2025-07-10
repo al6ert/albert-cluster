@@ -97,9 +97,9 @@ jobs:
 
       - name: Bootstrap CRDs
         run: |
+          cd infra/apps
           echo "Installing CRDs for cert-manager and traefik..."
-          kubectl apply -f infra/bootstrap/crds/cert-manager-CRDs.yaml
-          kubectl apply -f infra/bootstrap/crds/traefik-crds.yaml
+          helmfile --environment minikube --selector crd=true sync --include-crds --skip-deps
           echo "✅ CRDs installed successfully"
 
       - name: Helmfile lint

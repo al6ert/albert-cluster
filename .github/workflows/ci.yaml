@@ -117,6 +117,12 @@ jobs:
             | yq eval 'select(.kind == "CustomResourceDefinition")' - \
             | kubectl apply -f -
 
+          echo "⏳ Esperando a que los CRDs estén Established…"
+          kubectl wait crd \
+            --all \
+            --for=condition=Established \
+            --timeout=60s
+            
           echo "✅ CRDs instalados en el cluster"
 
       - name: Deploy and test in Minikube

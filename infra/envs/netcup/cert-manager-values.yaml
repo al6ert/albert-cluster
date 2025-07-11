@@ -22,17 +22,4 @@ extraObjects:
                   name: cloudflare-api-token
                   key: api-token
 
-  # Certificado wildcard para el dominio principal
-  - |
-    apiVersion: cert-manager.io/v1
-    kind: Certificate
-    metadata:
-      name: wildcard-netcup
-      namespace: traefik
-    spec:
-      secretName: wildcard-netcup-tls
-      dnsNames:
-        - '*.albertperez.dev'
-      issuerRef:
-        name: letsencrypt-prod
-        kind: ClusterIssuer
+  

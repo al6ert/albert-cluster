@@ -16,7 +16,7 @@ releases:
     values:
       - values.yaml
       - ../../envs/{{ .Environment.Name }}/traefik-values.yaml
-    wait: true
+    #wait: true
     timeout: 600
-    atomic: true
+    #atomic: true
 

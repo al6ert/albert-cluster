@@ -69,7 +69,7 @@ jobs:
         uses: medyagh/setup-minikube@v0.0.15
         with:
           driver: docker
-          kubernetes-version: v1.29.2
+          kubernetes-version: v1.30.2
           cpus: 4
           memory: 8192mb
           profile: minikube-${{ github.sha }}
@@ -148,6 +148,14 @@ jobs:
         run: |
           cd infra/apps
           helmfile --environment minikube apply --suppress-secrets
+
+      - name: Debug Traefik pods if fail
+        if: always()
+        run: |
+          kubectl get pods -n traefik
+          kubectl describe pod -n traefik -l app.kubernetes.io/name=traefik
+          kubectl logs -n traefik -l app.kubernetes.io/name=traefik --previous
+
 
       - name: Wait for pods to be ready
         run: |

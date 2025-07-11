@@ -32,3 +32,8 @@ extraObjects:
       issuerRef:
         name: letsencrypt-prod
         kind: ClusterIssuer
+
+tlsStore:
+  default:
+    defaultCertificate:
+      secretName: "wildcard-netcube-tls"                

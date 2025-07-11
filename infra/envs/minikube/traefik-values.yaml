@@ -24,3 +24,8 @@ extraObjects:
       issuerRef:
         name: local-ca-issuer
         kind: ClusterIssuer      
+
+tlsStore:
+  default:
+    defaultCertificate:
+      secretName: "wildcard-minikube-tls"        

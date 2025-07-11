@@ -72,7 +72,7 @@ persistence:
   path: /data
   size: 128Mi
 
-tlsStore:
-  default:
-    defaultCertificate:
-      secretName: "wildcard-{{ .Environment.Name }}-tls"
+# tlsStore:
+#   default:
+#     defaultCertificate:
+#       secretName: "wildcard-{{ .Environment.Name }}-tls"

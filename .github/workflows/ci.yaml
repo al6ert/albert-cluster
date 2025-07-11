@@ -127,6 +127,21 @@ jobs:
           
           echo "✅ CRDs instalados en el cluster"
 
+          # Aplicar Secrets (incluyendo SealedSecrets)
+          cd ../secrets
+          echo "::group::Aplicando Secrets y SealedSecrets"
+          for file in *.yaml; do
+            if [ -f "$file" ]; then
+              kubectl apply -f "$file"
+            fi
+          done
+          echo "::endgroup::"
+          
+          # Opcional: Espera a que SealedSecrets se unsealen (chequea si el secret plain existe)
+          echo "⏳ Esperando a que SealedSecrets se unsealen…"
+          kubectl wait --for=jsonpath='{.data.users}'=non-empty secret/admin-basic-auth -n traefik --timeout=60s || true  # Ajusta namespace y secret name
+          echo "✅ Secrets listos"
+
       - name: Deploy and test in Minikube
         run: |
           cd infra/apps

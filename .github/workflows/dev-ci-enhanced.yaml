@@ -110,7 +110,7 @@ jobs:
           
           echo "⏳ Esperando a que los CRDs estén Established…"
           # Wait dinámico: Lista todos los CRDs instalados, filtra por dominios relevantes, y espera en ellos
-          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io' | xargs kubectl wait --for=condition=Established --timeout=60s
+          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com' | xargs kubectl wait --for=condition=Established --timeout=60s
           echo "✅ CRDs listos"
 
       - name: Helmfile lint

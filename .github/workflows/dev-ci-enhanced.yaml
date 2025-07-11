@@ -128,7 +128,7 @@ jobs:
             cat diff.log
             echo "::endgroup::"
             exit 1
-          elif [ "$status" -ne 0 ]; then
+          elif [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then  # Cambia aquí: Solo falla si !=0 y !=2 (i.e., errors reales)
             echo "::error::Helmfile diff failed with status $status"
             echo "::group::Diff log"
             cat diff.log

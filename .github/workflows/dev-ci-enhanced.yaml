@@ -154,7 +154,8 @@ jobs:
         run: |
           kubectl get pods -n traefik
           kubectl describe pod -n traefik -l app.kubernetes.io/name=traefik
-          kubectl logs -n traefik -l app.kubernetes.io/name=traefik --previous
+          kubectl logs -n traefik -l app.kubernetes.io/name=traefik  # Agrega esto: logs actuales
+          kubectl logs -n traefik -l app.kubernetes.io/name=traefik --previous || echo "No previous logs"
 
 
       - name: Wait for pods to be ready

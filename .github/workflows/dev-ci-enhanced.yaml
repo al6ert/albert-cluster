@@ -97,25 +97,21 @@ jobs:
 
       - name: Bootstrap CRDs (cert-manager y Traefik)
         run: |
-          cd infra/apps
-
-          # Renderiza SÓLO los CRDs de los charts etiquetados con crd=true
-          #  - --include-crds: incluye los CRDs en la plantilla
-          #  - yq: filtra únicamente "kind: CustomResourceDefinition"
-          helmfile -l crd=true --environment minikube template --include-crds \
-            | yq eval 'select(.kind == "CustomResourceDefinition")' - \
-            | kubectl apply -f -
-
+          cd infra/bootstrap/crds
+          
+          # Aplicar todos los archivos .yaml en el directorio (loop dinámico)
+          echo "::group::Aplicando CRDs"
+          for file in *.yaml; do
+            if [ -f "$file" ]; then
+              kubectl apply -f "$file"
+            fi
+          done
+          echo "::endgroup::"
+          
           echo "⏳ Esperando a que los CRDs estén Established…"
-          kubectl wait --for=condition=Established --timeout=60s crd \
-            certificates.cert-manager.io certificaterequests.cert-manager.io \
-            clusterissuers.cert-manager.io issuers.cert-manager.io \
-            ingressroutes.traefik.io ingressroutetcps.traefik.io \
-            ingressrouteudps.traefik.io middlewaretcps.traefik.io \
-            traefikservices.traefik.io serverstransports.traefik.io
+          # Wait dinámico: Lista todos los CRDs instalados, filtra por dominios relevantes, y espera en ellos
+          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io' | xargs kubectl wait --for=condition=Established --timeout=60s
           echo "✅ CRDs listos"
-
-          echo "✅ CRDs instalados en el cluster"
 
       - name: Helmfile lint
         run: |

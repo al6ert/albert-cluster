@@ -1,4 +1,3 @@
 # infra/apps/cert-manager/values.yaml
-# Valores base para cert-manager
-
-#installCRDs: true
+crds:
+  enabled: false

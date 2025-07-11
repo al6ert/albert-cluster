@@ -70,6 +70,8 @@ jobs:
         with:
           driver: docker
           kubernetes-version: v1.29.2
+          cpus: 4
+          memory: 8192mb
           profile: minikube-${{ github.sha }}
 
       - name: Configure Minikube profile
@@ -137,6 +139,9 @@ jobs:
             exit $status
           fi
           echo "✅ Helmfile diff passed - no destructive changes detected"
+
+      - name: Pre-pull images
+        run: minikube ssh 'docker pull traefik:v3.4.3'    
 
       # -------- Despliegue y Tests de Humo -----------------------------------
       - name: Deploy to Minikube

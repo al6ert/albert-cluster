@@ -86,7 +86,7 @@ jobs:
           echo "::group::Render"
           cd infra/apps
           mkdir -p ../rendered/minikube
-          helmfile --environment minikube template > ../rendered/minikube/all.yaml
+          helmfile --e minikube template > ../rendered/minikube/all.yaml
           echo "::endgroup::"
 
       - name: Validate YAML syntax
@@ -118,13 +118,13 @@ jobs:
       - name: Helmfile lint
         run: |
           cd infra/apps
-          helmfile --environment minikube lint
+          helmfile --e minikube lint
 
       - name: Helmfile diff (fail on destructive changes)
         run: |
           cd infra/apps
           helm repo update  # Agrega esto: Actualiza todos los repos (incluyendo traefik y jetstack)
-          helmfile --environment minikube diff --detailed-exitcode --no-color > diff.log || status=$?
+          helmfile --e minikube diff --detailed-exitcode --no-color > diff.log || status=$?
           if [ "$status" = 2 ] && grep -qE 'REMOVED|DELETED' diff.log; then
             echo "::error::Helmfile diff contiene eliminaciones destructivas"
             echo "::group::Diff log"
@@ -148,10 +148,10 @@ jobs:
         run: kubectl create namespace admin --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy sealed‑secrets
-        run: helmfile -f infra/apps/helmfile.yaml --selector name=sealed-secrets apply
+        run: helmfile --e minikube -f infra/apps/helmfile.yaml --selector name=sealed-secrets apply
 
       - name: Deploy resto de apps
-        run: helmfile -f infra/apps/helmfile.yaml apply
+        run: helmfile --e minikube -f infra/apps/helmfile.yaml apply
 
       - name: Esperar a que el secreto esté listo
         run: kubectl wait --for=condition=Ready secret/admin-basic-auth -n admin --timeout=60s

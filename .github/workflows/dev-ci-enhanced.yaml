@@ -143,18 +143,20 @@ jobs:
       - name: Pre-pull images
         run: minikube ssh 'docker pull traefik:v3.4.3'    
 
-      # -------- Despliegue y Tests de Humo -----------------------------------
-      - name: Deploy to Minikube
-        run: |
-          cd infra/apps
-          # Apply Sealed Secrets primero (ajusta si es sub-helmfile)
-          helmfile --environment minikube --selector name=sealed-secrets apply --suppress-secrets
-          # Espera rollout y unsealing
-          kubectl rollout status deployment/sealed-secrets -n kube-system --timeout=120s
-          kubectl wait --for=condition=Ready secret/admin-basic-auth -n admin --timeout=60s || echo "Secret not ready, debug"
-          sleep 10  # Tiempo extra
-          # Apply el resto (Cert-Manager, Traefik, etc.)
-          helmfile --environment minikube apply --suppress-secrets
+    # -------- Despliegue y Tests de Humo -----------------------------------
+    steps:
+      - name: Setup namespaces
+        run: kubectl create namespace admin --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy sealed‑secrets
+        run: helmfile -f infra/apps/helmfile.yaml --selector name=sealed-secrets apply
+
+      - name: Deploy resto de apps
+        run: helmfile -f infra/apps/helmfile.yaml apply
+
+      - name: Esperar a que el secreto esté listo
+        run: kubectl wait --for=condition=Ready secret/admin-basic-auth -n admin --timeout=60s
+
 
       - name: Debug Traefik pods if fail
         if: always()

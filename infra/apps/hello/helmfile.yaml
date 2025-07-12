@@ -5,7 +5,7 @@ environments:
 ---
 releases:
   - name: hello
-    namespace: traefik
+    namespace: hello
     createNamespace: true
     chart: ../../charts/hello
     version: 0.1.0

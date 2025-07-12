@@ -115,13 +115,6 @@ jobs:
           kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com' | xargs kubectl wait --for=condition=Established --timeout=60s
           echo "✅ CRDs listos"
 
-      - name: Install Sealed Secrets Controller
-        run: |
-          helm repo add sealed-secrets https://bitnami-labs.github.io/sealed-secrets
-          helm repo update
-          helm install sealed-secrets sealed-secrets/sealed-secrets --namespace kube-system --create-namespace --version 0.26.0  # Usa la versión que prefieras
-          kubectl rollout status deployment/sealed-secrets-controller -n kube-system --timeout=120s          
-
       - name: Helmfile lint
         run: |
           cd infra/apps

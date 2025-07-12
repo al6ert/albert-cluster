@@ -147,32 +147,30 @@ jobs:
       - name: Secrets and Dependencies
         run: |
           cd infra/apps
-          # Crea namespace admin con metadata de Helm (idempotente, para evitar conflictos de ownership)
+          # Crea namespace admin con metadata de Helm (idempotente)
           kubectl create namespace admin --dry-run=client -o yaml | \
           yq e '.metadata.labels."app.kubernetes.io/managed-by" = "Helm" | .metadata.annotations."meta.helm.sh/release-name" = "traefik" | .metadata.annotations."meta.helm.sh/release-namespace" = "traefik"' - | \
           kubectl apply -f -
-    
-          # Para cert-manager (ajusta labels/annotations si Cert-Manager tiene su propio release-name, ej. "cert-manager")
+          # Para cert-manager
           kubectl create namespace cert-manager --dry-run=client -o yaml | \
           yq e '.metadata.labels."app.kubernetes.io/managed-by" = "Helm" | .metadata.annotations."meta.helm.sh/release-name" = "cert-manager" | .metadata.annotations."meta.helm.sh/release-namespace" = "cert-manager"' - | \
-          kubectl apply -f -          
-         
-         
+          kubectl apply -f -
           # Apply Sealed Secrets controller primero
           helmfile --environment minikube --selector name=sealed-secrets apply --suppress-secrets
           # Espera rollout del controller
           kubectl rollout status deployment/sealed-secrets -n kube-system --timeout=120s
-          # Aplica TODOS los SealedSecrets en bootstrap/secrets/ automáticamente (path corregido: desde apps, sube a infra/bootstrap)
+          # Aplica TODOS los SealedSecrets en bootstrap/secrets/
           for file in ../bootstrap/secrets/*.yaml; do
             if [ -f "$file" ]; then
               kubectl apply -f "$file"
             fi
           done
-          # Espera unsealing para cada SealedSecret (ajusta nombres si hay múltiples, ej. admin-basic-auth y cloudflare-api-token-sealed)
+          # Espera unsealing
           kubectl wait sealedsecret/admin-basic-auth -n admin --for=condition=Sealed=true --timeout=120s || echo "Unsealing de admin-basic-auth falló"
-          # Si hay más, agrega: kubectl wait sealedsecret/nombre-otro -n namespace --for=condition=Sealed=true --timeout=120s
+          kubectl wait sealedsecret/cloudflare-api-token -n cert-manager --for=condition=Sealed=true --timeout=120s || echo "Unsealing de cloudflare-api-token falló"
           kubectl wait secret/admin-basic-auth -n admin --for=condition=Ready --timeout=120s || echo "Secret admin-basic-auth no ready"
-          sleep 10  # Tiempo extra para propagación
+          kubectl wait secret/cloudflare-api-token -n cert-manager --for=condition=Ready --timeout=120s || echo "Secret cloudflare-api-token no ready"
+          sleep 10  # Tiempo extra
 
       - name: Deploy to Minikube - Main Apps
         run: |

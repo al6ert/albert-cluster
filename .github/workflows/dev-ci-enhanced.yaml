@@ -147,6 +147,13 @@ jobs:
       - name: Deploy to Minikube
         run: |
           cd infra/apps
+          # Apply Sealed Secrets primero (ajusta si es sub-helmfile)
+          helmfile --environment minikube --selector name=sealed-secrets apply --suppress-secrets
+          # Espera rollout y unsealing
+          kubectl rollout status deployment/sealed-secrets -n kube-system --timeout=120s
+          kubectl wait --for=condition=Ready secret/admin-basic-auth -n admin --timeout=60s || echo "Secret not ready, debug"
+          sleep 10  # Tiempo extra
+          # Apply el resto (Cert-Manager, Traefik, etc.)
           helmfile --environment minikube apply --suppress-secrets
 
       - name: Debug Traefik pods if fail

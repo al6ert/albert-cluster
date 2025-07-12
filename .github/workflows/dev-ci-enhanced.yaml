@@ -143,8 +143,7 @@ jobs:
       - name: Pre-pull images
         run: minikube ssh 'docker pull traefik:v3.4.3'    
 
-    # -------- Despliegue y Tests de Humo -----------------------------------
-    steps:
+        # -------- Despliegue y Tests de Humo -----------------------------------
       - name: Setup namespaces
         run: kubectl create namespace admin --dry-run=client -o yaml | kubectl apply -f -
 

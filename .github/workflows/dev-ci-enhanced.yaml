@@ -144,13 +144,20 @@ jobs:
         run: minikube ssh 'docker pull traefik:v3.4.3'    
 
         # -------- Despliegue y Tests de Humo -----------------------------------
-      - name: Deploy to Minikube - Secrets and Dependencies
+      - name: Secrets and Dependencies
         run: |
           cd infra/apps
           # Crea namespace admin con metadata de Helm (idempotente, para evitar conflictos de ownership)
           kubectl create namespace admin --dry-run=client -o yaml | \
           yq e '.metadata.labels."app.kubernetes.io/managed-by" = "Helm" | .metadata.annotations."meta.helm.sh/release-name" = "traefik" | .metadata.annotations."meta.helm.sh/release-namespace" = "traefik"' - | \
           kubectl apply -f -
+    
+          # Para cert-manager (ajusta labels/annotations si Cert-Manager tiene su propio release-name, ej. "cert-manager")
+          kubectl create namespace cert-manager --dry-run=client -o yaml | \
+          yq e '.metadata.labels."app.kubernetes.io/managed-by" = "Helm" | .metadata.annotations."meta.helm.sh/release-name" = "cert-manager" | .metadata.annotations."meta.helm.sh/release-namespace" = "cert-manager"' - | \
+          kubectl apply -f -          
+         
+         
           # Apply Sealed Secrets controller primero
           helmfile --environment minikube --selector name=sealed-secrets apply --suppress-secrets
           # Espera rollout del controller

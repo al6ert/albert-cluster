@@ -9,7 +9,12 @@ Infraestructura Kubernetes gestionada con GitOps usando Helmfile para renderizad
 Helmfile (render) → YAML plano → ArgoCD (deploy)
 ```
 
+
 ### Estructura del Proyecto
+```
+tree -a -I '.git' --prune
+```
+
 ```
 .
 ├── .github/workflows/

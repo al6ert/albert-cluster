@@ -1,0 +1,31 @@
+# infra/apps/sealed-secrets/values.yaml
+# Valores base para Sealed Secrets
+
+# Configuración básica del controlador
+controller:
+  # Recursos del controlador
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  # Configuración de replicas
+  replicaCount: 1
+
+# Configuración de seguridad
+rbac:
+  create: true
+
+# Configuración del service account
+serviceAccount:
+  create: true
+  name: ""
+
+# Configuración de toleraciones (para nodos con taints)
+tolerations: []
+
+# Configuración de affinity
+affinity: {} 

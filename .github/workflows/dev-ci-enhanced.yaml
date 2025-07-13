@@ -97,23 +97,30 @@ jobs:
           print("✅ YAML válido")
           PY
 
-      - name: Bootstrap CRDs (cert-manager y Traefik)
+      - name: Bootstrap All (Namespaces, CRDs, Secrets)
         run: |
-          cd infra/bootstrap/crds
-          
-          # Aplicar todos los archivos .yaml en el directorio (loop dinámico)
-          echo "::group::Aplicando CRDs"
-          for file in *.yaml; do
-            if [ -f "$file" ]; then
-              kubectl apply -f "$file"
-            fi
-          done
+          cd infra/bootstrap
+          echo "::group::Aplicando bootstrap completo con Kustomize"
+          # Aplica todo con Kustomize (crea namespaces primero, luego CRDs/secrets)
+          kubectl apply -k .
           echo "::endgroup::"
           
-          echo "⏳ Esperando a que los CRDs estén Established…"
-          # Wait dinámico: Lista todos los CRDs instalados, filtra por dominios relevantes, y espera en ellos
+          echo "⏳ Esperando CRDs established..."
+          # Espera CRDs established
           kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com' | xargs kubectl wait --for=condition=Established --timeout=60s
-          echo "✅ CRDs listos"
+          
+          echo "⏳ Esperando unsealing de SealedSecrets..."
+          # Espera unsealing (loop dinámico para todos los SealedSecrets)
+          for ss in $(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || echo ""); do
+            if [ -n "$ss" ]; then
+              echo "  - Unsealing $ss..."
+              kubectl wait sealedsecret/$ss -n admin --for=condition=Sealed=true --timeout=120s || echo "    ⚠️  Unsealing de $ss falló"
+              secret_name=$ss  # Asumiendo mismo nombre
+              kubectl wait secret/$secret_name -n admin --for=condition=Ready --timeout=120s || echo "    ⚠️  Secret $secret_name no ready"
+            fi
+          done
+          sleep 10
+          echo "✅ Bootstrap completado"
 
       - name: Helmfile lint
         run: |
@@ -144,38 +151,13 @@ jobs:
         run: minikube ssh 'docker pull traefik:v3.4.3'    
 
         # -------- Despliegue y Tests de Humo -----------------------------------
-      - name: Secrets and Dependencies
-        run: |
-          cd infra/apps
-          # Crea namespace admin con metadata de Helm (idempotente)
-          kubectl create namespace admin --dry-run=client -o yaml | \
-          yq e '.metadata.labels."app.kubernetes.io/managed-by" = "Helm" | .metadata.annotations."meta.helm.sh/release-name" = "traefik" | .metadata.annotations."meta.helm.sh/release-namespace" = "traefik"' - | \
-          kubectl apply -f -
-          # Para cert-manager
-          kubectl create namespace cert-manager --dry-run=client -o yaml | \
-          yq e '.metadata.labels."app.kubernetes.io/managed-by" = "Helm" | .metadata.annotations."meta.helm.sh/release-name" = "cert-manager" | .metadata.annotations."meta.helm.sh/release-namespace" = "cert-manager"' - | \
-          kubectl apply -f -
-          # Apply Sealed Secrets controller primero
-          helmfile --environment minikube --selector name=sealed-secrets apply --suppress-secrets
-          # Espera rollout del controller
-          kubectl rollout status deployment/sealed-secrets -n kube-system --timeout=120s
-          # Aplica TODOS los SealedSecrets en bootstrap/secrets/
-          for file in ../bootstrap/secrets/*.yaml; do
-            if [ -f "$file" ]; then
-              kubectl apply -f "$file"
-            fi
-          done
-          # Espera unsealing
-          kubectl wait sealedsecret/admin-basic-auth -n admin --for=condition=Sealed=true --timeout=120s || echo "Unsealing de admin-basic-auth falló"
-          kubectl wait sealedsecret/cloudflare-api-token -n cert-manager --for=condition=Sealed=true --timeout=120s || echo "Unsealing de cloudflare-api-token falló"
-          kubectl wait secret/admin-basic-auth -n admin --for=condition=Ready --timeout=120s || echo "Secret admin-basic-auth no ready"
-          kubectl wait secret/cloudflare-api-token -n cert-manager --for=condition=Ready --timeout=120s || echo "Secret cloudflare-api-token no ready"
-          sleep 10  # Tiempo extra
+
 
       - name: Deploy to Minikube - Main Apps
         run: |
           cd infra/apps
-          # Apply el resto (Cert-Manager, Traefik, etc.)
+          # Apply todas las aplicaciones (Cert-Manager, Traefik, etc.)
+          # El middleware de autenticación se aplica desde extraObjects de Traefik
           helmfile --environment minikube apply --suppress-secrets
 
 

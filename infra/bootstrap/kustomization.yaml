@@ -1,9 +1,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  # Namespaces primero (wave 0)
+  - namespaces/
+  # CRDs y RBAC
   - crds/traefik-crds.yaml
   - crds/cert-manager-CRDs.yaml
   - rbac/gh-actions.yaml
+  # SealedSecrets (después de namespaces)
+  - secrets/
+  # ArgoCD Applications
   - argocd.yaml
   - argocd-root.yaml
   - argocd-minikube.yaml

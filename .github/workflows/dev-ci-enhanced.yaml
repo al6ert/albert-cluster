@@ -198,7 +198,10 @@ jobs:
           cd infra/apps
           # Apply todas las aplicaciones (Cert-Manager, Traefik, etc.)
           # El middleware de autenticación se aplica desde extraObjects de Traefik
-          helmfile --environment minikube apply --suppress-secrets
+          helmfile --environment minikube apply --suppress-secrets --timeout 900s  # Aumenta timeout
+          
+          # Wait extra para readiness si needed
+          kubectl wait deployment -n cert-manager --all --for=condition=Available --timeout=300s || true
 
 
       - name: Debug Traefik pods if fail

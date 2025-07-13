@@ -10,8 +10,6 @@ resources:
   - secrets/
   # Middlewares comunes
   - middlewares/
-  # ArgoCD Applications
-  - argocd.yaml
+  # ArgoCD Applications (sin la instalación completa)
   - argocd-root.yaml
   - argocd-minikube.yaml
-  # Nota: Las ArgoCD Applications ahora se manejan por separado en infra/apps/

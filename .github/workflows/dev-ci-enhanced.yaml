@@ -100,17 +100,20 @@ jobs:
       - name: Bootstrap All (Namespaces, CRDs, Secrets)
         run: |
           cd infra/bootstrap
-          echo "::group::Aplicando bootstrap completo con Kustomize"
-          # Aplica todo con Kustomize (crea namespaces primero, luego CRDs/secrets)
+          echo "::group::Aplicando bootstrap completo con Kustomize (declarativo)"
+          # Pre-crear namespace argocd de forma idempotente (para ArgoCD Applications)
+          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Aplicar todo con Kustomize - enfoque declarativo y robusto
           kubectl apply -k .
           echo "::endgroup::"
           
           echo "⏳ Esperando CRDs established..."
-          # Espera CRDs established
-          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com' | xargs kubectl wait --for=condition=Established --timeout=60s
+          # Esperar CRDs established (incluyendo ArgoCD CRDs)
+          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | xargs kubectl wait --for=condition=Established --timeout=60s
           
           echo "⏳ Esperando unsealing de SealedSecrets..."
-          # Espera unsealing (loop dinámico para todos los SealedSecrets)
+          # Esperar unsealing (loop dinámico para todos los SealedSecrets)
           for ss in $(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || echo ""); do
             if [ -n "$ss" ]; then
               echo "  - Unsealing $ss..."
@@ -120,7 +123,7 @@ jobs:
             fi
           done
           sleep 10
-          echo "✅ Bootstrap completado"
+          echo "✅ Bootstrap completado (declarativo y robusto)"
 
       - name: Helmfile lint
         run: |

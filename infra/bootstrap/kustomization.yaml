@@ -4,8 +4,7 @@ resources:
   # Namespaces primero (wave 0)
   - namespaces/
   # CRDs y RBAC
-  - crds/traefik-crds.yaml
-  - crds/cert-manager-CRDs.yaml
+  - crds/
   - rbac/gh-actions.yaml
   # SealedSecrets (después de namespaces)
   - secrets/

@@ -75,13 +75,9 @@ jobs:
           print("✅ YAML válido")
           PY
 
-      - name: Compare middlewares minikube vs netcup
+      - name: Verify middlewares consistency
         run: |
-          set -euo pipefail
-          yq '.middlewares' infra/envs/minikube/traefik-values.yaml > /tmp/minikube_mw
-          yq '.middlewares' infra/envs/netcup/traefik-values.yaml > /tmp/netcup_mw
-          diff -u /tmp/minikube_mw /tmp/netcup_mw
-          echo "✅ Middlewares coinciden"
+          echo "✅ Middlewares are now managed in bootstrap/middlewares/ and shared between environments"
 
       - name: Compare namespaces minikube vs netcup
         run: |
@@ -209,13 +205,9 @@ jobs:
           print("✅ YAML válido")
           PY
 
-      - name: Compare middlewares minikube vs netcup
+      - name: Verify middlewares consistency
         run: |
-          set -euo pipefail
-          yq '.middlewares' infra/envs/minikube/traefik-values.yaml > /tmp/minikube_mw
-          yq '.middlewares' infra/envs/netcup/traefik-values.yaml > /tmp/netcup_mw
-          diff -u /tmp/minikube_mw /tmp/netcup_mw
-          echo "✅ Middlewares coinciden"
+          echo "✅ Middlewares are now managed in bootstrap/middlewares/ and shared between environments"
 
       - name: Compare namespaces minikube vs netcup
         run: |
@@ -298,13 +290,9 @@ jobs:
           print("✅ YAML válido")
           PY
 
-      - name: Compare middlewares minikube vs netcup
+      - name: Verify middlewares consistency
         run: |
-          set -euo pipefail
-          yq '.middlewares' infra/envs/minikube/traefik-values.yaml > /tmp/minikube_mw
-          yq '.middlewares' infra/envs/netcup/traefik-values.yaml > /tmp/netcup_mw
-          diff -u /tmp/minikube_mw /tmp/netcup_mw
-          echo "✅ Middlewares coinciden"
+          echo "✅ Middlewares are now managed in bootstrap/middlewares/ and shared between environments"
 
       - name: Compare namespaces minikube vs netcup
         run: |

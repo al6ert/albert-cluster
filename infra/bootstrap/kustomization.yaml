@@ -9,6 +9,8 @@ resources:
   - rbac/gh-actions.yaml
   # SealedSecrets (después de namespaces)
   - secrets/
+  # Middlewares comunes
+  - middlewares/
   # ArgoCD Applications
   - argocd.yaml
   - argocd-root.yaml

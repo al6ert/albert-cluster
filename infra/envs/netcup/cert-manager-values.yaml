@@ -10,14 +10,14 @@ extraObjects:
       name: letsencrypt-prod
     spec:
       acme:
-        email: "{{ .Environment.Values.certmanager.email }}"
+        email: "admin@albertperez.dev"
         server: https://acme-v02.api.letsencrypt.org/directory
         privateKeySecretRef:
           name: letsencrypt-prod
         solvers:
           - dns01:
               cloudflare:
-                email: "{{ .Environment.Values.certmanager.email }}"
+                email: "admin@albertperez.dev"
                 apiTokenSecretRef:
                   name: cloudflare-api-token
                   key: api-token

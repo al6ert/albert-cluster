@@ -47,8 +47,60 @@ spec:
                     type: string
               syncPolicy:
                 type: object
+                properties:
+                  automated:
+                    type: object
+                    properties:
+                      prune:
+                        type: boolean
+                      selfHeal:
+                        type: boolean
+                  syncOptions:
+                    type: array
+                    items:
+                      type: string
+                  retry:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      backoff:
+                        type: object
+                        properties:
+                          duration:
+                            type: string
+                          factor:
+                            type: integer
+                          maxDuration:
+                            type: string
           status:
             type: object
+            properties:
+              sync:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  comparedTo:
+                    type: object
+                  revision:
+                    type: string
+              health:
+                type: object
+                properties:
+                  status:
+                    type: string
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    message:
+                      type: string
     served: true
     storage: true
     subresources:

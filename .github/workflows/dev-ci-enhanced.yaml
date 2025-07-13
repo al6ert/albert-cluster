@@ -97,33 +97,71 @@ jobs:
           print("✅ YAML válido")
           PY
 
-      - name: Bootstrap All (Namespaces, CRDs, Secrets)
+      - name: Bootstrap All (Enfoque por Fases Robustas)
         run: |
           cd infra/bootstrap
-          echo "::group::Aplicando bootstrap completo con Kustomize (declarativo)"
-          # Pre-crear namespace argocd de forma idempotente (para ArgoCD Applications)
-          kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+          set -euo pipefail
           
-          # Aplicar todo con Kustomize - enfoque declarativo y robusto
-          kubectl apply -k .
+          echo "::group::📦 Fase 0: Instalar CRDs de ArgoCD"
+          # Instalar CRDs de ArgoCD si no existen (para Minikube clean)
+          if ! kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
+            echo "Instalando CRDs de ArgoCD..."
+            curl -sSL -o argocd-crds.yaml https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/crds.yaml
+            kubectl apply -f argocd-crds.yaml
+            rm argocd-crds.yaml
+          else
+            echo "CRDs de ArgoCD ya existen"
+          fi
           echo "::endgroup::"
           
-          echo "⏳ Esperando CRDs established..."
-          # Esperar CRDs established (incluyendo ArgoCD CRDs)
-          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | xargs kubectl wait --for=condition=Established --timeout=60s
+          echo "::group::🏗️ Fase 1: Namespaces + CRDs + RBAC"
+          # Aplicar solo namespaces, CRDs y RBAC primero
+          kubectl apply -k namespaces/
+          kubectl apply -k crds/
+          kubectl apply -f rbac/gh-actions.yaml
+          echo "::endgroup::"
           
+          echo "::group::⏳ Fase 2: Esperando CRDs Established"
+          # Esperar que TODOS los CRDs estén established con timeout aumentado
+          echo "Esperando CRDs established (timeout: 180s)..."
+          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | \
+            xargs kubectl wait --for=condition=Established --timeout=180s
+          echo "✅ Todos los CRDs están established"
+          echo "::endgroup::"
+          
+          echo "::group::🔐 Fase 3: SealedSecrets + Middlewares"
+          # Aplicar recursos dependientes de CRDs
+          kubectl apply -k secrets/
+          kubectl apply -k middlewares/
+          echo "::endgroup::"
+          
+          echo "::group::🚀 Fase 4: ArgoCD Applications"
+          # Aplicar Applications de ArgoCD al final
+          kubectl apply -f argocd-root.yaml -f argocd-minikube.yaml
+          echo "::endgroup::"
+          
+          echo "::group::🔍 Fase 5: Verificación Final"
           echo "⏳ Esperando unsealing de SealedSecrets..."
-          # Esperar unsealing (loop dinámico para todos los SealedSecrets)
-          for ss in $(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || echo ""); do
+          # Esperar unsealing con mejor manejo de errores
+          for ss in $(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null || echo ""); do
             if [ -n "$ss" ]; then
-              echo "  - Unsealing $ss..."
-              kubectl wait sealedsecret/$ss -n admin --for=condition=Sealed=true --timeout=120s || echo "    ⚠️  Unsealing de $ss falló"
-              secret_name=$ss  # Asumiendo mismo nombre
-              kubectl wait secret/$secret_name -n admin --for=condition=Ready --timeout=120s || echo "    ⚠️  Secret $secret_name no ready"
+              ns=$(echo $ss | cut -d' ' -f1)
+              name=$(echo $ss | cut -d' ' -f2)
+              echo "  - Unsealing $name en namespace $ns..."
+              kubectl wait sealedsecret/$name -n $ns --for=condition=Sealed=true --timeout=120s || echo "    ⚠️  Unsealing de $name falló"
             fi
           done
-          sleep 10
-          echo "✅ Bootstrap completado (declarativo y robusto)"
+          
+          # Verificación final de estado
+          echo "📋 Estado final de recursos:"
+          echo "  Namespaces: $(kubectl get ns | grep -E '(admin|argocd|cert-manager)' | wc -l)"
+          echo "  CRDs: $(kubectl get crd | grep -E '(cert-manager|traefik|bitnami|argoproj)' | wc -l)"
+          echo "  Applications: $(kubectl get applications -n argocd --no-headers 2>/dev/null | wc -l)"
+          echo "  SealedSecrets: $(kubectl get sealedsecrets -A --no-headers 2>/dev/null | wc -l)"
+          echo "  Middlewares: $(kubectl get middlewares -A --no-headers 2>/dev/null | wc -l)"
+          echo "::endgroup::"
+          
+          echo "✅ Bootstrap completado exitosamente con enfoque por fases"
 
       - name: Helmfile lint
         run: |

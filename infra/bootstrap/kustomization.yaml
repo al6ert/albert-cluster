@@ -1,15 +1,14 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+
 resources:
-  # Namespaces primero (wave 0)
+  # Namespaces y CRDs (fase 0)
   - namespaces/
-  # CRDs y RBAC
   - crds/
   - rbac/gh-actions.yaml
-  # SealedSecrets (después de namespaces)
+  # SealedSecrets y Middlewares (fase 1)
   - secrets/
-  # Middlewares comunes
   - middlewares/
-  # ArgoCD Applications (sin la instalación completa)
+  # ArgoCD Applications (fase 2)
   - argocd-root.yaml
   - argocd-minikube.yaml

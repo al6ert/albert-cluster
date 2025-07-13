@@ -106,8 +106,8 @@ jobs:
           # Instalar CRDs de ArgoCD si no existen (para Minikube clean)
           if ! kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
             echo "Instalando CRDs de ArgoCD..."
-            curl -sSL -o argocd-crds.yaml https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/crds.yaml
-            kubectl apply -f argocd-crds.yaml
+            curl -sSL -o argocd-crds.yaml https://raw.githubusercontent.com/argoproj/argo-cd/v2.12.3/manifests/crds/install.yaml
+            kubectl apply -f argocd-crds.yaml --validate=false
             rm argocd-crds.yaml
           else
             echo "CRDs de ArgoCD ya existen"

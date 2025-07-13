@@ -3,4 +3,5 @@ kind: Kustomization
 resources:
   - traefik-crds.yaml
   - cert-manager-CRDs.yaml
-  - sealed-secrets-crd.yaml 
+  - sealed-secrets-crd.yaml
+  - argocd-application-crd.yaml

@@ -102,22 +102,20 @@ jobs:
           cd infra/bootstrap
           set -euo pipefail
           
-          echo "::group::📦 Fase 0: Instalar CRDs de ArgoCD"
-          # Instalar CRDs de ArgoCD si no existen (para Minikube clean)
+          echo "::group::📦 Fase 0: Verificar CRDs de ArgoCD"
+          # Los CRDs de ArgoCD esenciales están incluidos en crds/argocd-application-crd.yaml
+          # Se aplicarán automáticamente en la Fase 1 con el resto de CRDs
           if ! kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
-            echo "Instalando CRDs de ArgoCD..."
-            curl -sSL -o argocd-crds.yaml https://raw.githubusercontent.com/argoproj/argo-cd/v2.12.3/manifests/crds/install.yaml
-            kubectl apply -f argocd-crds.yaml --validate=false
-            rm argocd-crds.yaml
+            echo "📋 CRDs de ArgoCD no existen - se instalarán en Fase 1"
           else
-            echo "CRDs de ArgoCD ya existen"
+            echo "✅ CRDs de ArgoCD ya existen"
           fi
           echo "::endgroup::"
           
           echo "::group::🏗️ Fase 1: Namespaces + CRDs + RBAC"
           # Aplicar solo namespaces, CRDs y RBAC primero
           kubectl apply -k namespaces/
-          kubectl apply -k crds/
+          kubectl apply -k crds/ --validate=false
           kubectl apply -f rbac/gh-actions.yaml
           echo "::endgroup::"
           

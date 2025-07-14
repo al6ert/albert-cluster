@@ -1,19 +1,37 @@
 # infra/envs/netcup/traefik-values.yaml
-# Valores específicos para producción (netcup)
+# Environment-specific values for production (netcup)
+
+# Inherit from global values
+network:
+  domain: "{{ .Values.network.domain }}"
 
 global:
-  domain: "albertperez.dev"               # tu FQDN real
-
-# tlsStore:
-#   default:
-#     defaultCertificate:
-#       secretName: "wildcard-netcup-tls"   # el Secret creado por cert-manager
+  domain: "{{ .Values.network.domain }}"
 
 ingressRoute:
   dashboard:
     matchRule: >
-      Host(`traefik.albertperez.dev`)
+      Host(`traefik.{{ .Values.network.domain }}`)
       && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
-    # middlewares:
-    #   - name: basic-auth
-    #     namespace: admin
+    middlewares:
+      - name: basic-auth
+        namespace: admin
+
+extraObjects:
+  # Wildcard certificate for production domain
+  - apiVersion: cert-manager.io/v1
+    kind: Certificate
+    metadata:
+      name: wildcard-netcup
+    spec:
+      secretName: wildcard-netcup-tls
+      dnsNames:
+        - '*.{{ .Values.network.domain }}'
+      issuerRef:
+        name: letsencrypt-prod
+        kind: ClusterIssuer
+
+tlsStore:
+  default:
+    defaultCertificate:
+      secretName: "wildcard-netcup-tls"                

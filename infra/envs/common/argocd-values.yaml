@@ -1,0 +1,9 @@
+# infra/envs/common/argocd-values.yaml
+# Valores comunes para ArgoCD (shared between minikube and netcup)
+server:
+  service:
+    type: LoadBalancer        # MetalLB asignará IP
+configs:
+  params:
+    # Desactiva logística del repo de ejemplo
+    # server.insecure: true     # Solo si planeas proteger con Traefik+Auth 

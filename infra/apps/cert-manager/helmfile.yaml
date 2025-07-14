@@ -7,13 +7,16 @@ repositories:
   - name: jetstack
     url: https://charts.jetstack.io
 
+  - name: bedag
+    url: https://bedag.github.io/helm-charts/
+
 releases:
   - name: cert-manager
     namespace: cert-manager
     createNamespace: true
     chart: jetstack/cert-manager
-    version: v1.18.2
-    values:
+    version: {{ requiredEnv "CERT_MANAGER_CHART_VERSION" }}
+    values:      
       - values.yaml
       - ../../envs/{{ .Environment.Name }}/cert-manager-values.yaml
     wait: true

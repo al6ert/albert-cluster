@@ -9,29 +9,16 @@ extraObjects:
       name: letsencrypt-prod
     spec:
       acme:
-        email: admin@albertperez.dev
+        email: "admin@albertperez.dev"
         server: https://acme-v02.api.letsencrypt.org/directory
         privateKeySecretRef:
           name: letsencrypt-prod
         solvers:
           - dns01:
               cloudflare:
-                email: admin@albertperez.dev
+                email: "admin@albertperez.dev"
                 apiTokenSecretRef:
                   name: cloudflare-api-token
                   key: api-token
 
-  # Certificado wildcard para el dominio principal
-  - |
-    apiVersion: cert-manager.io/v1
-    kind: Certificate
-    metadata:
-      name: wildcard-netcup
-      namespace: traefik
-    spec:
-      secretName: wildcard-netcup-tls
-      dnsNames:
-        - '*.albertperez.dev'
-      issuerRef:
-        name: letsencrypt-prod
-        kind: ClusterIssuer
+  

@@ -8,193 +8,149 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write      # necesario para crear ramas y PRs
-  pull-requests: write # necesario para abrir / actualizar el PR
-  issues: write          # crear la etiqueta si no existe
-  
+  contents: write
+  pull-requests: write
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  HELM_VERSION: v3.18.3
-  HELMFILE_VERSION: v0.170.1
-  YQ_VERSION: v4.40.5
-
-########################
-# JOB 1: PUBLICACIÓN   #
-########################
 jobs:
-  validate_and_publish:
-    if: github.ref == 'refs/heads/main'
+  validate:
+    name: Validate and Test
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Tools
+        uses: ./.github/actions/setup-tools
+
+      - name: Validate Manifests (minikube)
+        uses: ./.github/actions/validate-manifests
+        with:
+          environment: minikube
+
+      - name: Validate Manifests (netcup)  
+        uses: ./.github/actions/validate-manifests
+        with:
+          environment: netcup
+
+      - name: Compare namespace consistency
+        run: |
+          cd infra/apps
+          helmfile --environment minikube template > /tmp/minikube-all.yaml
+          helmfile --environment netcup template > /tmp/netcup-all.yaml
+          minikube_ns=$(yq e '.metadata.namespace' /tmp/minikube-all.yaml | sort -u | grep -v null)
+          netcup_ns=$(yq e '.metadata.namespace' /tmp/netcup-all.yaml | sort -u | grep -v null)
+
+          if [ "$minikube_ns" != "$netcup_ns" ]; then
+            echo "::error::Namespaces don't match between environments"
+            exit 1
+          fi
+          echo "✅ Namespaces are consistent across environments"
+
+  build-test-dev:
+    name: Build and Test (Development)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: dev
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0      # necesario para crear ramas
 
-      # -------- Herramientas --------------------------------------------------
-      - name: Cache Helm plugins & charts
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/helm
-            ~/.local/share/helm
-          key: ${{ runner.os }}-helm-${{ env.HELM_VERSION }}
+      - name: Setup Tools
+        uses: ./.github/actions/setup-tools
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
+      - name: Validate Manifests (netcup)
+        uses: ./.github/actions/validate-manifests
         with:
-          version: 'latest'
+          environment: netcup
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
+      - name: Setup Minikube
+        uses: medyagh/setup-minikube@v0.0.15
         with:
-          version: ${{ env.HELM_VERSION }}
+          driver: docker
+          kubernetes-version: v1.29.2
+          profile: minikube-${{ github.sha }}
 
-      - name: Set up Helmfile
-        uses: mamezou-tech/setup-helmfile@v2.1.0   # ✅ tag real
-        with:
-          helmfile-version: ${{ env.HELMFILE_VERSION }}              # opcional, el default ya es este
-          install-helm: "no" 
-
-      - name: Install yq
+      - name: Bootstrap cluster
         run: |
-          sudo apt-get update -y
-          curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
-            -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq
-
-      # -------- Render + validaciones -----------------------------------------
-      - name: Render manifests (netcup)
-        run: |
-          echo "::group::Render"
-          cd infra/apps
-          mkdir -p ../rendered/netcup
-          helmfile --environment netcup template > ../rendered/netcup/all.yaml
+          cd infra/bootstrap
+          set -euo pipefail
+          
+          echo "::group::Phase 1: Namespaces + CRDs + RBAC"
+          kubectl apply -k namespaces/
+          kubectl apply -k crds/ --validate=false
+          kubectl apply -f rbac/gh-actions.yaml
+          echo "::endgroup::"
+          
+          echo "::group::Phase 2: Wait for CRDs"
+          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | \
+            xargs kubectl wait --for=condition=Established --timeout=180s
+          echo "::endgroup::"
+          
+          echo "::group::Phase 3: Secrets + Middlewares"
+          kubectl apply -k secrets/
+          kubectl apply -k middlewares/
           echo "::endgroup::"
 
-      - name: Validate YAML syntax
+      - name: Deploy and test applications
         run: |
-          python3 - <<'PY'
-          import yaml, sys
-          yaml.safe_load_all(open('infra/rendered/netcup/all.yaml'))
-          print("✅ YAML válido")
-          PY
-
-      - name: Compare middlewares minikube vs netcup
-        run: |
-          set -euo pipefail
-          yq '.middlewares' infra/envs/minikube/traefik-values.yaml > /tmp/minikube_mw
-          yq '.middlewares' infra/envs/netcup/traefik-values.yaml > /tmp/netcup_mw
-          diff -u /tmp/minikube_mw /tmp/netcup_mw
-          echo "✅ Middlewares coinciden"
-
-      - name: Compare namespaces minikube vs netcup
-        run: |
-          set -euo pipefail
           cd infra/apps
-          helmfile --environment minikube template > /tmp/minikube-all.yaml
-          helmfile --environment netcup template > /tmp/netcup-all.yaml
-          minikube_ns=$(yq e '.metadata.namespace' /tmp/minikube-all.yaml | sort -u | grep -v null)
-          netcup_ns=$(yq e '.metadata.namespace' /tmp/netcup-all.yaml | sort -u | grep -v null)
+          helmfile --environment minikube apply --suppress-secrets --timeout 900s
+          kubectl wait pod --all -A --for=condition=Ready --timeout=300s
 
-          if [ "$minikube_ns" != "$netcup_ns" ]; then
-            echo "::error::Namespaces no coinciden"
-            exit 1
-          fi
-          echo "✅ Namespaces coinciden"
+      - name: Run smoke tests
+        run: |
+          chmod +x tests/smoke.sh
+          ./tests/smoke.sh
 
-      # -------- Crear / actualizar PR -----------------------------------------
-      - name: Create or update PR with rendered manifests
-        id: cpr
-        uses: peter-evans/create-pull-request@v6
-        with:
-          branch: bot/rendered-netcup
-          title: "chore(ci): update rendered netcup manifests"
-          commit-message: "ci: render netcup manifests"
-          body: |
-            Este PR actualiza los manifiestos renderizados para el entorno **netcup**.
-            Se genera automáticamente desde el workflow *CI*.
-          labels: ci, automated
-          delete-branch: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # Solo hará commit si hay cambios; el action se encarga
+      - name: Cleanup
+        if: always()
+        run: |
+          minikube delete -p minikube-${{ github.sha }}
 
-      - name: Enable auto-merge (si el repo lo permite)
-        if: steps.cpr.outputs.pull-request-number != ''
-        run: gh pr merge --auto --merge ${{ steps.cpr.outputs.pull-request-number }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-########################
-# JOB 2: VALIDACIÓN PR #
-########################
-  validate_only:
-    if: github.event_name == 'pull_request'
+  promote-prod:
+    name: Promote to Production
+    needs: build-test-dev
+    if: github.ref == 'refs/heads/main'
+    environment: prod
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Misma instalación de herramientas (omitido por brevedad)
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
+      - name: Setup Tools
+        uses: ./.github/actions/setup-tools
+
+      - name: Validate Manifests (netcup)
+        uses: ./.github/actions/validate-manifests
         with:
-          version: 'latest'
+          environment: netcup
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: ${{ env.HELM_VERSION }}
-
-      - name: Set up Helmfile
-        uses: mamezou-tech/setup-helmfile@v1
-        with:
-          helmfile-version: v0.162.0
-
-      - name: Install yq
+      - name: Install ArgoCD CLI
         run: |
-          sudo apt-get update -y
-          curl -L "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
-            -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq
+          source versions.env
+          curl -sSL -o argocd-linux-amd64 "https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-amd64"
+          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+          rm argocd-linux-amd64
 
-      # Render + validaciones idénticas al job anterior
-      - name: Render manifests (netcup)
+      - name: ArgoCD diff and sync
         run: |
-          cd infra/apps
-          mkdir -p ../rendered/netcup
-          helmfile --environment netcup template > ../rendered/netcup/all.yaml
+          argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password ${{ secrets.ARGOCD_PASSWORD }} --insecure
+          
+          echo "::group::ArgoCD diff"
+          argocd app diff cluster-root --grpc-web || {
+            echo "::warning::ArgoCD diff detected changes, proceeding with sync"
+          }
+          echo "::endgroup::"
 
-      - name: Validate YAML syntax
-        run: |
-          python3 - <<'PY'
-          import yaml, sys
-          yaml.safe_load_all(open('infra/rendered/netcup/all.yaml'))
-          print("✅ YAML válido")
-          PY
-
-      - name: Compare middlewares minikube vs netcup
-        run: |
-          set -euo pipefail
-          yq '.middlewares' infra/envs/minikube/traefik-values.yaml > /tmp/minikube_mw
-          yq '.middlewares' infra/envs/netcup/traefik-values.yaml > /tmp/netcup_mw
-          diff -u /tmp/minikube_mw /tmp/netcup_mw
-          echo "✅ Middlewares coinciden"
-
-      - name: Compare namespaces minikube vs netcup
-        run: |
-          set -euo pipefail
-          cd infra/apps
-          helmfile --environment minikube template > /tmp/minikube-all.yaml
-          helmfile --environment netcup template > /tmp/netcup-all.yaml
-          minikube_ns=$(yq e '.metadata.namespace' /tmp/minikube-all.yaml | sort -u | grep -v null)
-          netcup_ns=$(yq e '.metadata.namespace' /tmp/netcup-all.yaml | sort -u | grep -v null)
-
-          if [ "$minikube_ns" != "$netcup_ns" ]; then
-            echo "::error::Namespaces no coinciden"
-            exit 1
-          fi
-          echo "✅ Namespaces coinciden"
+          echo "::group::ArgoCD sync"
+          argocd app sync cluster-root --prune --self-heal
+          argocd app wait cluster-root --health --timeout 300
+          echo "::endgroup::"

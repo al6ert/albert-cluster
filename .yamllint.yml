@@ -1,0 +1,51 @@
+# .yamllint.yml
+# Configuration for yamllint tool
+
+extends: default
+
+rules:
+  # Line length is often unavoidable in Kubernetes manifests
+  line-length:
+    max: 120
+    level: warning
+
+  # Comments are important for documentation
+  comments:
+    min-spaces-from-content: 1
+
+  # Indentation consistency is crucial
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+  # Truthy values are common in Kubernetes
+  truthy:
+    allowed-values: ['true', 'false', 'yes', 'no']
+    check-keys: false
+
+  # Document separators
+  document-start:
+    present: false
+
+  # Empty lines
+  empty-lines:
+    max: 2
+    max-start: 0
+    max-end: 1
+
+  # Brackets
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Braces
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+ignore: |
+  infra/rendered/
+  infra/bootstrap/argocd.yaml
+  infra/bootstrap/crds/
+  tmp/ 

@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: cluster-root
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
   destination:
@@ -11,8 +13,25 @@ spec:
   source:
     repoURL: https://github.com/al6ert/albert-cluster.git
     targetRevision: main
-    path: infra/rendered/netcup         # Cambiar a manifiestos renderizados para producción
+    path: infra/apps
+    plugin:
+      name: helmfile
+      env:
+        - name: HELMFILE_ENVIRONMENT
+          value: netcup
+        - name: TRAEFIK_CHART_VERSION
+          value: "36.3.0"
+        - name: CERT_MANAGER_CHART_VERSION
+          value: "v1.18.2"
+        - name: SEALED_SECRETS_CHART_VERSION
+          value: "2.15.0"
+        - name: HELLO_CHART_VERSION
+          value: "0.1.0"
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true

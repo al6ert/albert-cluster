@@ -1,0 +1,80 @@
+name: 'Validate Manifests'
+description: 'Validate YAML syntax, run yamllint, and helmfile lint'
+
+inputs:
+  environment:
+    description: 'Environment to validate (minikube or netcup)'
+    required: true
+  working-directory:
+    description: 'Working directory for helmfile operations'
+    required: false
+    default: 'infra/apps'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install yamllint
+      shell: bash
+      run: |
+        pip install yamllint
+
+    - name: Run yamllint
+      shell: bash
+      run: |
+        yamllint . || {
+          echo "::warning::yamllint found issues, but continuing..."
+        }
+
+    - name: Render manifests for validation
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        echo "::group::Rendering manifests for ${{ inputs.environment }}"
+        mkdir -p ../tmp
+        helmfile --environment ${{ inputs.environment }} template > ../tmp/${{ inputs.environment }}-all.yaml
+        echo "::endgroup::"
+
+    - name: Validate YAML syntax
+      shell: bash
+      run: |
+        python3 -c "
+        import yaml, sys
+        try:
+            with open('infra/tmp/${{ inputs.environment }}-all.yaml') as f:
+                list(yaml.safe_load_all(f))
+            print('✅ YAML syntax is valid')
+        except yaml.YAMLError as e:
+            print(f'❌ YAML syntax error: {e}')
+            sys.exit(1)
+        "
+
+    - name: Helmfile lint
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        echo "::group::Helmfile lint for ${{ inputs.environment }}"
+        helmfile --environment ${{ inputs.environment }} lint
+        echo "::endgroup::"
+
+    - name: Helmfile diff (check for destructive changes)
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        echo "::group::Helmfile diff for ${{ inputs.environment }}"
+        helm repo update
+        helmfile --environment ${{ inputs.environment }} diff --detailed-exitcode --no-color > diff.log || status=$?
+        if [ "$status" = 2 ] && grep -qE 'REMOVED|DELETED' diff.log; then
+          echo "::error::Helmfile diff contains destructive changes"
+          echo "::group::Diff log"
+          cat diff.log
+          echo "::endgroup::"
+          exit 1
+        elif [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then
+          echo "::error::Helmfile diff failed with status $status"
+          echo "::group::Diff log"
+          cat diff.log
+          echo "::endgroup::"
+          exit $status
+        fi
+        echo "✅ Helmfile diff passed - no destructive changes detected"
+        echo "::endgroup::" 

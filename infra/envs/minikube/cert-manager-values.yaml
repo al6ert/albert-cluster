@@ -36,17 +36,4 @@ extraObjects:
       ca:
         secretName: local-ca
 
-  # Certificado wildcard para el entorno local
-  - |
-    apiVersion: cert-manager.io/v1
-    kind: Certificate
-    metadata:
-      name: wildcard-minikube
-      namespace: traefik
-    spec:
-      secretName: wildcard-minikube-tls
-      dnsNames:
-        - '*.127.0.0.1.nip.io'
-      issuerRef:
-        name: local-ca-issuer
-        kind: ClusterIssuer
+  

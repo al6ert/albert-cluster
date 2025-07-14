@@ -1224,33 +1224,19 @@ spec:
 ---
 # Source: cert-manager/templates/extras-objects.yaml
 apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: wildcard-netcup
-  namespace: traefik
-spec:
-  secretName: wildcard-netcup-tls
-  dnsNames:
-    - '*.albertperez.dev'
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
----
-# Source: cert-manager/templates/extras-objects.yaml
-apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
   name: letsencrypt-prod
 spec:
   acme:
-    email: admin@albertperez.dev
+    email: "admin@albertperez.dev"
     server: https://acme-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
       - dns01:
           cloudflare:
-            email: admin@albertperez.dev
+            email: "admin@albertperez.dev"
             apiTokenSecretRef:
               name: cloudflare-api-token
               key: api-token
@@ -1477,11 +1463,324 @@ spec:
         kubernetes.io/os: "linux"
 
 ---
-# Source: traefik/templates/extra-objects.yaml
+# Source: sealed-secrets/templates/service-account.yaml
 apiVersion: v1
-kind: Namespace
+kind: ServiceAccount
 metadata:
-  name: admin
+  name: sealed-secrets
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: sealed-secrets
+    helm.sh/chart: sealed-secrets-2.15.0
+    app.kubernetes.io/instance: sealed-secrets
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 0.26.0
+    app.kubernetes.io/part-of: sealed-secrets
+---
+# Source: sealed-secrets/templates/cluster-role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: secrets-unsealer
+  labels:
+    app.kubernetes.io/name: sealed-secrets
+    helm.sh/chart: sealed-secrets-2.15.0
+    app.kubernetes.io/instance: sealed-secrets
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 0.26.0
+    app.kubernetes.io/part-of: sealed-secrets
+rules:
+  - apiGroups:
+      - bitnami.com
+    resources:
+      - sealedsecrets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - bitnami.com
+    resources:
+      - sealedsecrets/status
+    verbs:
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - create
+      - update
+      - delete
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+---
+# Source: sealed-secrets/templates/cluster-role-binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: sealed-secrets
+  labels:
+    app.kubernetes.io/name: sealed-secrets
+    helm.sh/chart: sealed-secrets-2.15.0
+    app.kubernetes.io/instance: sealed-secrets
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 0.26.0
+    app.kubernetes.io/part-of: sealed-secrets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: secrets-unsealer
+subjects:
+  - apiGroup: ""
+    kind: ServiceAccount
+    name: sealed-secrets
+    namespace: kube-system
+---
+# Source: sealed-secrets/templates/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sealed-secrets-key-admin
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: sealed-secrets
+    helm.sh/chart: sealed-secrets-2.15.0
+    app.kubernetes.io/instance: sealed-secrets
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 0.26.0
+    app.kubernetes.io/part-of: sealed-secrets
+rules:
+  - apiGroups:
+      - ""
+    resourceNames:
+      - sealed-secrets-key
+    resources:
+      - secrets
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - create
+      - list
+---
+# Source: sealed-secrets/templates/role.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sealed-secrets-service-proxier
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: sealed-secrets
+    helm.sh/chart: sealed-secrets-2.15.0
+    app.kubernetes.io/instance: sealed-secrets
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 0.26.0
+    app.kubernetes.io/part-of: sealed-secrets
+rules:
+  - apiGroups:
+      - ""
+    resourceNames:
+      - sealed-secrets
+    resources:
+      - services
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resourceNames:
+      - 'http:sealed-secrets:'
+      - 'http:sealed-secrets:http'
+      - sealed-secrets
+    resources:
+      - services/proxy
+    verbs:
+      - create
+      - get
+---
+# Source: sealed-secrets/templates/role-binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sealed-secrets-key-admin
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: sealed-secrets
+    helm.sh/chart: sealed-secrets-2.15.0
+    app.kubernetes.io/instance: sealed-secrets
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 0.26.0
+    app.kubernetes.io/part-of: sealed-secrets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: sealed-secrets-key-admin
+subjects:
+  - apiGroup: ""
+    kind: ServiceAccount
+    name: sealed-secrets
+    namespace: kube-system
+---
+# Source: sealed-secrets/templates/role-binding.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sealed-secrets-service-proxier
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: sealed-secrets
+    helm.sh/chart: sealed-secrets-2.15.0
+    app.kubernetes.io/instance: sealed-secrets
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 0.26.0
+    app.kubernetes.io/part-of: sealed-secrets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: sealed-secrets-service-proxier
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:authenticated
+---
+# Source: sealed-secrets/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: sealed-secrets
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: sealed-secrets
+    helm.sh/chart: sealed-secrets-2.15.0
+    app.kubernetes.io/instance: sealed-secrets
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 0.26.0
+    app.kubernetes.io/part-of: sealed-secrets
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      nodePort: null
+  selector:
+    app.kubernetes.io/name: sealed-secrets
+    app.kubernetes.io/instance: sealed-secrets
+---
+# Source: sealed-secrets/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: sealed-secrets-metrics
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: sealed-secrets
+    helm.sh/chart: sealed-secrets-2.15.0
+    app.kubernetes.io/instance: sealed-secrets
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 0.26.0
+    app.kubernetes.io/part-of: sealed-secrets
+    app.kubernetes.io/component: metrics
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: 8081
+      targetPort: metrics
+      nodePort: null
+  selector:
+    app.kubernetes.io/name: sealed-secrets
+    app.kubernetes.io/instance: sealed-secrets
+---
+# Source: sealed-secrets/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sealed-secrets
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: sealed-secrets
+    helm.sh/chart: sealed-secrets-2.15.0
+    app.kubernetes.io/instance: sealed-secrets
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/version: 0.26.0
+    app.kubernetes.io/part-of: sealed-secrets
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sealed-secrets
+      app.kubernetes.io/instance: sealed-secrets
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sealed-secrets
+        app.kubernetes.io/instance: sealed-secrets
+    spec:
+      securityContext:
+        fsGroup: 65534
+      serviceAccountName: sealed-secrets
+      containers:
+        - name: controller
+          command:
+            - controller
+          args:
+            - --update-status
+            - --key-prefix
+            - "sealed-secrets-key"
+          image: docker.io/bitnami/sealed-secrets-controller:0.26.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 8081
+              name: metrics
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            limits: {}
+            requests: {}
+          securityContext:
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+
 ---
 # Source: traefik/templates/rbac/serviceaccount.yaml
 kind: ServiceAccount
@@ -1757,6 +2056,19 @@ metadata:
 spec:
   controller: traefik.io/ingress-controller
 ---
+# Source: traefik/templates/extra-objects.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-netcup
+spec:
+  dnsNames:
+  - '*.albertperez.dev'
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+  secretName: wildcard-netcup-tls
+---
 # Source: traefik/templates/ingressroute.yaml
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -1782,31 +2094,6 @@ spec:
       - name: basic-auth
         namespace: admin
 ---
-# Source: traefik/templates/extra-objects.yaml
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: basic-auth
-  namespace: admin
-spec:
-  basicAuth:
-    realm: Protected Area
-    secret: admin-basic-auth
----
-# Source: traefik/templates/extra-objects.yaml
-apiVersion: bitnami.com/v1alpha1
-kind: SealedSecret
-metadata:
-  name: admin-basic-auth
-  namespace: admin
-spec:
-  encryptedData:
-    users: AgAD3cxTP3jRd4QPtTvqViXGxjVy9daz1I+S4Fq3LJvU/ZqFUFtdVuHpdB+KfmGzheGaxMZiYaiwgjsdTIIQxlltW2r36qZQ+n4rUnlr3yzKTXAz4BlRSxeqRiXl/3U+LpAAkwY0BjtD09yQp8OhHrzft2lq7pRLMqPS8g79ozx9/jcXjvSh4x4Y7y7u2+cWOpC3Y/O/Xz4FsJu06RdDI3nafjF7BLH8iGxyM1dUCHVhnPNJxSkj+7mip7IPnekn/jo3dr3qv5O3xaww1Sd8oFgWKgN0gIfT4A2pRjjsYIzfP7BypniAoMUmpwrFYtl0/KKqdTQDOK5ScSpKasBXl4gNmtA+P4gJ4/A/43DRG5EfLJUSCr9stRKV3xy2iU434UNGCjzaXyFu7KK/HKLvTBfAJZhZTgULhHsNQVvWqIIdys6915hGgSbnwwRTbfrHMkvA0FE+h5nbz8qYZfUCSDM5tIxkfSg5dWwSdz4BQCVrT8UrE3i7whqPM/ebZQLR4kYy5dWElTjb99wkz/JLCMMY174GwJdEbiOTpLbWSYfCvU8zeRb6MJgtdGYz1s6GuQjBEEBdRqS/OzGW2+ihwqO2P47dEOPAFCXkwJUCaR5+PeLMPRTxdFnCdyrGkXn0OSw8gzjF6XjVf9/TDIu988F4CuKfivLWnDszQZGKqMbXyB/XNMQXhFDhH5QsovPnACJij1wIEFGZjnRUdv8XjAA5OryWHm86/VPkjH5o3M+ZiXl4Yz/AHbu3Qo24a/as6Chm1lY1eyql4DZPPUUnpxnpuIw12ZoHMvMjv3BVgPRuo0cUTJyIFYVQMzyU75uSgcEeQg+E4MqvMAvueYcUm21MAPcH0TX3N1MjObjxyU+TphhNruXGl+E=
-  template:
-    metadata:
-      name: admin-basic-auth
-      namespace: admin
----
 # Source: traefik/templates/tlsstore.yaml
 apiVersion: traefik.io/v1alpha1
 kind: TLSStore
@@ -1820,7 +2107,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   defaultCertificate:
-    secretName: wildcard-{{ .Environment.Name }}-tls
+    secretName: wildcard-netcup-tls
 
 ---
 # Source: hello/templates/deployment.yaml
@@ -1828,7 +2115,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: hello
-  namespace: traefik
+  namespace: hello
   labels:
     helm.sh/chart: hello-0.1.0
     app.kubernetes.io/name: hello
@@ -1851,7 +2138,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: hello
-  namespace: traefik
+  namespace: hello
   labels:
     helm.sh/chart: hello-0.1.0
     app.kubernetes.io/name: hello
@@ -1894,7 +2181,7 @@ apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
   name: hello
-  namespace: traefik
+  namespace: hello
   labels:
     helm.sh/chart: hello-0.1.0
     app.kubernetes.io/name: hello

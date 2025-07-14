@@ -1,10 +1,14 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+
 resources:
-  - crds/traefik-crds.yaml
-  - crds/cert-manager-CRDs.yaml
+  # Namespaces y CRDs (fase 0)
+  - namespaces/
+  - crds/
   - rbac/gh-actions.yaml
-  - argocd.yaml
+  # SealedSecrets y Middlewares (fase 1)
+  - secrets/
+  - middlewares/
+  # ArgoCD Applications (fase 2)
   - argocd-root.yaml
   - argocd-minikube.yaml
-  # Nota: Las ArgoCD Applications ahora se manejan por separado en infra/apps/

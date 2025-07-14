@@ -3,15 +3,15 @@
 
 # Inherit from global values
 network:
-  domain: "{{ .Values.network.domain }}"
+  domain: "127.0.0.1.nip.io"
 
 global:
-  domain: "{{ .Values.network.domain }}"
+  domain: "127.0.0.1.nip.io"
 
 ingressRoute:
   dashboard:
     matchRule: >
-      Host(`traefik.{{ .Values.network.domain }}`)
+      Host(`traefik.127.0.0.1.nip.io`)
       && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
 
 extraObjects:
@@ -23,7 +23,7 @@ extraObjects:
     spec:
       secretName: wildcard-minikube-tls
       dnsNames:
-        - '*.{{ .Values.network.domain }}'
+        - '*.127.0.0.1.nip.io'
       issuerRef:
         name: local-ca-issuer
         kind: ClusterIssuer      

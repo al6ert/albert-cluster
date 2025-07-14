@@ -8,6 +8,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/versions.env"
 
+# Disable default minikube ingress addon if enabled to avoid conflicts with Traefik
+if minikube addons list | grep -q "ingress: enabled"; then
+    echo "Disabling default minikube ingress addon to avoid conflicts..."
+    minikube addons disable ingress
+fi
+
 echo "🚀 Starting idempotent local deployment..."
 echo "📋 Using versions: Helm ${HELM_VERSION}, Helmfile ${HELMFILE_VERSION}"
 

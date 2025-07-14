@@ -5,7 +5,7 @@ replicaCount: 2
 
 ingress:
   hosts:
-    - host: hello.{{ .Values.network.domain }}
+    - host: hello.albertperez.dev
 
 # Traefik configuration using production wildcard certificate
 traefik:
@@ -13,4 +13,4 @@ traefik:
     tlsSecret: wildcard-netcup-tls
 
 app:
-  message: "¡Hola desde {{ .Values.environment.name | title }}!" 
+  message: "¡Hola desde Netcup!" 

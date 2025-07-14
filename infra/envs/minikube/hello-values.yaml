@@ -5,7 +5,7 @@ replicaCount: 1
 
 ingress:
   hosts:
-    - host: hello.{{ .Values.network.domain }}
+    - host: hello.127.0.0.1.nip.io
 
 # Traefik configuration using wildcard certificate
 traefik:
@@ -13,4 +13,4 @@ traefik:
     tlsSecret: wildcard-minikube-tls
 
 app:
-  message: "¡Hola desde {{ .Values.environment.name | title }}!" 
+  message: "¡Hola desde Minikube!" 

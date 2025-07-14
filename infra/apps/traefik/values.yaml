@@ -1,15 +1,15 @@
 # infra/apps/traefik/values.yaml
-# Valores base para Traefik v3.x
+# Base values for Traefik v3.x - environment-specific values will override these
 
 ##########################
-# CONFIGURACIÓN GLOBAL
+# GLOBAL CONFIGURATION
 ##########################
 global:
-  domain: "example.com"
+  domain: "{{ .Values.network.domain | default \"example.com\" }}"
 
 providers:
   kubernetesCRD:
-    allowCrossNamespace: true        # Para middleware centralizado
+    allowCrossNamespace: true        # For centralized middleware
 
 ##########################
 # DASHBOARD
@@ -18,9 +18,9 @@ ingressRoute:
   dashboard:
     enabled: true
     entryPoints: ["websecure"]
-    # Dominio se inyectará desde la capa env
+    # Domain will be injected from environment layer
     matchRule: >
-      Host(`traefik.example.com`)
+      Host(`traefik.{{ .Values.network.domain | default "example.com" }}`)
       && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))    
     middlewares:
       - name: basic-auth

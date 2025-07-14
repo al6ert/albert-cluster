@@ -1,16 +1,16 @@
 # infra/envs/netcup/hello-values.yaml
-# Valores específicos para la aplicación hello en producción (netcup)
+# Environment-specific values for hello app in production (netcup)
 
-replicaCount: 1
+replicaCount: 2
 
 ingress:
   hosts:
-    - host: hello.albertperez.dev
+    - host: hello.{{ .Values.network.domain }}
 
-# Configuración de Traefik para usar el certificado wildcard de producción
+# Traefik configuration using production wildcard certificate
 traefik:
   ingressRoute:
     tlsSecret: wildcard-netcup-tls
 
 app:
-  message: "¡Hola desde Netcup!" 
+  message: "¡Hola desde {{ .Values.environment.name | title }}!" 

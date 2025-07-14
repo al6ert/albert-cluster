@@ -1,0 +1,58 @@
+name: 'Setup Tools'
+description: 'Setup Helm, Helmfile, kubectl, and yq with consistent versions'
+
+inputs:
+  cache-key:
+    description: 'Cache key for Helm cache'
+    required: false
+    default: ${{ runner.os }}-helm-tools
+
+outputs:
+  helm-version:
+    description: 'Helm version used'
+    value: ${{ steps.versions.outputs.helm-version }}
+  
+runs:
+  using: "composite"
+  steps:
+    - name: Load versions
+      id: versions
+      shell: bash
+      run: |
+        source versions.env
+        echo "helm-version=${HELM_VERSION}" >> $GITHUB_OUTPUT
+        echo "helmfile-version=${HELMFILE_VERSION}" >> $GITHUB_OUTPUT  
+        echo "yq-version=${YQ_VERSION}" >> $GITHUB_OUTPUT
+        echo "kubectl-version=${KUBECTL_VERSION}" >> $GITHUB_OUTPUT
+
+    - name: Cache Helm plugins & charts
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/helm
+          ~/.local/share/helm
+        key: ${{ inputs.cache-key }}-${{ steps.versions.outputs.helm-version }}
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v4
+      with:
+        version: ${{ steps.versions.outputs.kubectl-version }}
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: ${{ steps.versions.outputs.helm-version }}
+
+    - name: Install Helmfile
+      uses: helmfile/helmfile-action@v2.0.4
+      with:
+        helmfile-version: ${{ steps.versions.outputs.helmfile-version }}
+        helm-version: ${{ steps.versions.outputs.helm-version }}
+        helmfile-args: version
+
+    - name: Install yq
+      shell: bash
+      run: |
+        VERSION="${{ steps.versions.outputs.yq-version }}"
+        curl -sSL "https://github.com/mikefarah/yq/releases/download/${VERSION}/yq_linux_amd64" \
+          -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq 

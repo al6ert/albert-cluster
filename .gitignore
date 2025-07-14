@@ -16,3 +16,10 @@ tmp/
 .secrets/*.pem
 
 # Manifiestos YAML renderizados (se generan automáticamente)
+infra/rendered/**
+**/all.yaml
+
+# Temporary files and build artifacts
+tmp/**
+.tmp/
+*.tmp

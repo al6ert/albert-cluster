@@ -1,18 +1,21 @@
 # infra/envs/minikube/traefik-values.yaml
-# Overrides específicos para tu entorno Minikube (desarrollo local)
+# Environment-specific overrides for Minikube (local development)
+
+# Inherit from global values
+network:
+  domain: "{{ .Values.network.domain }}"
 
 global:
-  domain: "127.0.0.1.nip.io"
+  domain: "{{ .Values.network.domain }}"
 
 ingressRoute:
   dashboard:
     matchRule: >
-      Host(`traefik.127.0.0.1.nip.io`)
+      Host(`traefik.{{ .Values.network.domain }}`)
       && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
-      
 
 extraObjects:
-  # Certificado wildcard para el entorno local
+  # Wildcard certificate for local environment
   - apiVersion: cert-manager.io/v1
     kind: Certificate
     metadata:
@@ -20,7 +23,7 @@ extraObjects:
     spec:
       secretName: wildcard-minikube-tls
       dnsNames:
-        - '*.127.0.0.1.nip.io'
+        - '*.{{ .Values.network.domain }}'
       issuerRef:
         name: local-ca-issuer
         kind: ClusterIssuer      

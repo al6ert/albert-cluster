@@ -8,57 +8,32 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: read
 
-env:
-  HELM_VERSION: v3.18.3
-  HELMFILE_VERSION: v1.1.2
-  YQ_VERSION: v4.40.5
+concurrency:
+  group: dev-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-test-dev:
+    name: Enhanced Development Build and Test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
     
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # -------- Herramientas --------------------------------------------------
-      - name: Cache Helm plugins & charts
-        uses: actions/cache@v4
+      - name: Setup Tools
+        uses: ./.github/actions/setup-tools
         with:
-          path: |
-            ~/.cache/helm
-            ~/.local/share/helm
-          key: ${{ runner.os }}-helm-${{ env.HELM_VERSION }}
+          cache-key: ${{ runner.os }}-helm-dev-${{ github.sha }}
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
+      - name: Validate Manifests (minikube)
+        uses: ./.github/actions/validate-manifests
         with:
-          version: 'latest'
+          environment: minikube
 
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: ${{ env.HELM_VERSION }}
-
-      - name: Install Helmfile
-        uses: helmfile/helmfile-action@v2.0.4
-        with:
-          helmfile-version: ${{ env.HELMFILE_VERSION }}
-          helm-version: ${{ env.HELM_VERSION }}
-          helmfile-args: version
-
-      - name: Install yq
-        run: |
-          curl -sSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" \
-            -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq
-
-      # -------- Setup Minikube --------------------------------------------------
       - name: Cache Minikube
         uses: actions/cache@v4
         with:
@@ -74,85 +49,60 @@ jobs:
           memory: 8192mb
           profile: minikube-${{ github.sha }}
 
-      - name: Configure Minikube profile
+      - name: Configure Minikube
         run: |
           minikube profile minikube-${{ github.sha }}
           minikube addons disable ingress
           minikube addons disable storage-provisioner
 
-      # -------- Validación y Linting -----------------------------------------
-      - name: Render manifests (minikube)
-        run: |
-          echo "::group::Render"
-          cd infra/apps
-          mkdir -p ../rendered/minikube
-          helmfile --environment minikube template > ../rendered/minikube/all.yaml
-          echo "::endgroup::"
-
-      - name: Validate YAML syntax
-        run: |
-          python3 - <<'PY'
-          import yaml, sys
-          yaml.safe_load_all(open('infra/rendered/minikube/all.yaml'))
-          print("✅ YAML válido")
-          PY
-
-      - name: Bootstrap All (Enfoque por Fases Robustas)
+      - name: Bootstrap cluster (Enhanced phased approach)
         run: |
           cd infra/bootstrap
           set -euo pipefail
           
-          echo "::group::📦 Fase 0: Verificar CRDs de ArgoCD"
-          # Los CRDs de ArgoCD esenciales están incluidos en crds/argocd-application-crd.yaml
-          # Se aplicarán automáticamente en la Fase 1 con el resto de CRDs
+          echo "::group::📦 Phase 0: Verify ArgoCD CRDs"
           if ! kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
-            echo "📋 CRDs de ArgoCD no existen - se instalarán en Fase 1"
+            echo "📋 ArgoCD CRDs don't exist - will install in Phase 1"
           else
-            echo "✅ CRDs de ArgoCD ya existen"
+            echo "✅ ArgoCD CRDs already exist"
           fi
           echo "::endgroup::"
           
-          echo "::group::🏗️ Fase 1: Namespaces + CRDs + RBAC"
-          # Aplicar solo namespaces, CRDs y RBAC primero
+          echo "::group::🏗️ Phase 1: Namespaces + CRDs + RBAC"
           kubectl apply -k namespaces/
           kubectl apply -k crds/ --validate=false
           kubectl apply -f rbac/gh-actions.yaml
           echo "::endgroup::"
           
-          echo "::group::⏳ Fase 2: Esperando CRDs Established"
-          # Esperar que TODOS los CRDs estén established con timeout aumentado
-          echo "Esperando CRDs established (timeout: 180s)..."
+          echo "::group::⏳ Phase 2: Wait for CRDs Established"
+          echo "Waiting for CRDs to be established (timeout: 180s)..."
           kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | \
             xargs kubectl wait --for=condition=Established --timeout=180s
-          echo "✅ Todos los CRDs están established"
+          echo "✅ All CRDs are established"
           echo "::endgroup::"
           
-          echo "::group::🔐 Fase 3: SealedSecrets + Middlewares"
-          # Aplicar recursos dependientes de CRDs
+          echo "::group::🔐 Phase 3: SealedSecrets + Middlewares"
           kubectl apply -k secrets/
           kubectl apply -k middlewares/
           echo "::endgroup::"
           
-          echo "::group::🚀 Fase 4: ArgoCD Applications"
-          # Aplicar Applications de ArgoCD al final con --validate=false para evitar problemas de validación estricta
+          echo "::group::🚀 Phase 4: ArgoCD Applications"
           kubectl apply -f argocd-root.yaml -f argocd-minikube.yaml --validate=false
-          echo "✅ ArgoCD Applications aplicadas exitosamente"
+          echo "✅ ArgoCD Applications applied successfully"
           echo "::endgroup::"
           
-          echo "::group::🔍 Fase 5: Verificación Final"
-          echo "⏳ Esperando unsealing de SealedSecrets..."
-          # Esperar unsealing con mejor manejo de errores
+          echo "::group::🔍 Phase 5: Final verification"
+          echo "⏳ Waiting for SealedSecrets unsealing..."
           for ss in $(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null || echo ""); do
             if [ -n "$ss" ]; then
               ns=$(echo $ss | cut -d' ' -f1)
               name=$(echo $ss | cut -d' ' -f2)
-              echo "  - Unsealing $name en namespace $ns..."
-              kubectl wait sealedsecret/$name -n $ns --for=condition=Sealed=true --timeout=120s || echo "    ⚠️  Unsealing de $name falló"
+              echo "  - Unsealing $name in namespace $ns..."
+              kubectl wait sealedsecret/$name -n $ns --for=condition=Sealed=true --timeout=120s || echo "    ⚠️ Unsealing of $name failed"
             fi
           done
           
-          # Verificación final de estado
-          echo "📋 Estado final de recursos:"
+          echo "📋 Final resource state:"
           echo "  Namespaces: $(kubectl get ns | grep -E '(admin|argocd|cert-manager)' | wc -l)"
           echo "  CRDs: $(kubectl get crd | grep -E '(cert-manager|traefik|bitnami|argoproj)' | wc -l)"
           echo "  Applications: $(kubectl get applications -n argocd --no-headers 2>/dev/null | wc -l)"
@@ -160,60 +110,28 @@ jobs:
           echo "  Middlewares: $(kubectl get middlewares -A --no-headers 2>/dev/null | wc -l)"
           echo "::endgroup::"
           
-          echo "✅ Bootstrap completado exitosamente con enfoque por fases"
+          echo "✅ Bootstrap completed successfully with enhanced phased approach"
 
-      - name: Helmfile lint
+      - name: Pre-pull container images
+        run: |
+          source versions.env
+          minikube ssh "docker pull traefik:v3.4.3; docker pull quay.io/jetstack/cert-manager-controller:v1.18.2"
+
+      - name: Deploy applications to Minikube
         run: |
           cd infra/apps
-          helmfile --environment minikube lint
-
-      - name: Helmfile diff (fail on destructive changes)
-        run: |
-          cd infra/apps
-          helm repo update  # Agrega esto: Actualiza todos los repos (incluyendo traefik y jetstack)
-          helmfile --environment minikube diff --detailed-exitcode --no-color > diff.log || status=$?
-          if [ "$status" = 2 ] && grep -qE 'REMOVED|DELETED' diff.log; then
-            echo "::error::Helmfile diff contiene eliminaciones destructivas"
-            echo "::group::Diff log"
-            cat diff.log
-            echo "::endgroup::"
-            exit 1
-          elif [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then
-            echo "::error::Helmfile diff failed with status $status"
-            echo "::group::Diff log"
-            cat diff.log
-            echo "::endgroup::"
-            exit $status
-          fi
-          echo "✅ Helmfile diff passed - no destructive changes detected"
-
-      - name: Pre-pull images
-        run: minikube ssh 'docker pull traefik:v3.4.3'    
-
-        # -------- Despliegue y Tests de Humo -----------------------------------
-
-
-      - name: Deploy to Minikube - Main Apps
-        run: |
-          cd infra/apps
-          # Apply todas las aplicaciones (Cert-Manager, Traefik, etc.)
-          # El middleware de autenticación se aplica desde extraObjects de Traefik
-          helmfile --environment minikube apply --suppress-secrets --timeout 900s  # Aumenta timeout
-          
-          # Wait extra para readiness si needed
+          helmfile --environment minikube apply --suppress-secrets --timeout 900s
           kubectl wait deployment -n cert-manager --all --for=condition=Available --timeout=300s || true
 
-
-      - name: Debug Traefik pods if fail
-        if: always()
+      - name: Debug Traefik if deployment fails
+        if: failure()
         run: |
           kubectl get pods -n traefik
           kubectl describe pod -n traefik -l app.kubernetes.io/name=traefik
-          kubectl logs -n traefik -l app.kubernetes.io/name=traefik  # Agrega esto: logs actuales
+          kubectl logs -n traefik -l app.kubernetes.io/name=traefik || echo "No current logs"
           kubectl logs -n traefik -l app.kubernetes.io/name=traefik --previous || echo "No previous logs"
 
-
-      - name: Wait for pods to be ready
+      - name: Wait for all pods to be ready
         run: |
           kubectl wait pod --all -A --for=condition=Ready --timeout=300s
 
@@ -227,42 +145,12 @@ jobs:
           fi
           echo "✅ All pods are running"
 
-      - name: Smoke tests
+      - name: Enhanced smoke tests
         run: |
-          # Test 1: Hello app should return 200
-          echo "Testing hello app..."
-          kubectl port-forward svc/hello 8080:80 -n traefik &
-          sleep 5
-          curl -f http://localhost:8080/ || {
-            echo "::error::Hello app not responding"
-            exit 1
-          }
-          pkill -f "kubectl port-forward"
+          chmod +x tests/smoke.sh
+          ./tests/smoke.sh
 
-          # Test 2: Traefik dashboard should require auth (401)
-          echo "Testing Traefik dashboard auth..."
-          kubectl port-forward svc/traefik 8080:9000 -n traefik &
-          sleep 5
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/dashboard/)
-          if [ "$HTTP_CODE" != "401" ]; then
-            echo "::error::Traefik dashboard should return 401 (auth required), got $HTTP_CODE"
-            exit 1
-          fi
-          pkill -f "kubectl port-forward"
-
-          echo "✅ All smoke tests passed"
-
-      # -------- Limpieza -----------------------------------------------------
       - name: Cleanup Minikube
         if: always()
         run: |
-          minikube delete -p minikube-${{ github.sha }}
-
-      # -------- Commit rendered manifests ------------------------------------
-      - name: Commit rendered manifests
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add infra/rendered/minikube
-          git commit -m "ci: render minikube manifests $(date +%F-%T)" || echo "No changes to commit"
-          git push 
+          minikube delete -p minikube-${{ github.sha }} 

@@ -12,7 +12,9 @@ releases:
     namespace: kube-system
     createNamespace: false  # kube-system ya existe
     chart: sealed-secrets/sealed-secrets
-    version: 2.15.0  # Corresponde a app version 0.26.0 (tu versión actual)
+    version: {{ requiredEnv "SEALED_SECRETS_CHART_VERSION" }}
     values:
       - values.yaml
-    timeout: 300 
+    wait: true
+    timeout: 300
+    atomic: true 

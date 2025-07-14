@@ -1,16 +1,16 @@
 # infra/envs/minikube/hello-values.yaml
-# Overrides específicos para la aplicación hello en Minikube
+# Environment-specific overrides for hello app in Minikube
 
 replicaCount: 1
 
 ingress:
   hosts:
-    - host: hello.127.0.0.1.nip.io
+    - host: hello.{{ .Values.network.domain }}
 
-# Configuración de Traefik para usar el certificado wildcard
+# Traefik configuration using wildcard certificate
 traefik:
   ingressRoute:
     tlsSecret: wildcard-minikube-tls
 
 app:
-  message: "¡Hola desde Minikube!" 
+  message: "¡Hola desde {{ .Values.environment.name | title }}!" 

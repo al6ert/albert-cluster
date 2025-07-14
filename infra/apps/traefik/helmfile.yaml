@@ -12,11 +12,11 @@ releases:
     namespace: traefik
     createNamespace: true
     chart: traefik/traefik
-    version: 36.3.0
+    version: {{ requiredEnv "TRAEFIK_CHART_VERSION" }}
     values:
       - values.yaml
       - ../../envs/{{ .Environment.Name }}/traefik-values.yaml
     wait: true
     timeout: 600
-    atomic: false
+    atomic: true
 

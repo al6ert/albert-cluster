@@ -62,12 +62,12 @@ check_prerequisites() {
         echo "❌ openssl not found. Please install openssl."
         exit 1
     fi
-
+    
     if ! command -v htpasswd >/dev/null 2>&1; then
         echo "❌ htpasswd not found. Please install apache2-utils."
         exit 1
     fi
-
+    
     if ! command -v kubeseal >/dev/null 2>&1; then
         echo "❌ kubeseal not found. Install it with:"
         echo "   curl -Lo kubeseal https://github.com/bitnami-labs/sealed-secrets/releases/download/v${KUBESEAL_VERSION#v}/kubeseal-linux-amd64"
@@ -79,33 +79,33 @@ check_prerequisites() {
 # Create secure temporary directory
 setup_temp_dir() {
     TMP_DIR=$(mktemp -d)
-    trap 'rm -rf "$TMP_DIR"' EXIT
+    trap "rm -rf '$TMP_DIR'" EXIT
     echo "📁 Using temporary directory: $TMP_DIR"
 }
 
 # Generate passwords and htpasswd file
 generate_credentials() {
     echo "📝 Generating secure passwords..."
-
+    
     # Create htpasswd file
     local htpasswd_file="$TMP_DIR/users.htpasswd"
     rm -f "$htpasswd_file"
-
+    
     # Parse users and generate passwords
     IFS=',' read -ra USER_ARRAY <<< "$USERS"
     declare -A PASSWORDS
-
+    
     for user in "${USER_ARRAY[@]}"; do
         user=$(echo "$user" | xargs)  # trim whitespace
         password=$(openssl rand -base64 20)
         PASSWORDS["$user"]="$password"
-
+        
         echo "🔑 $user: $password"
-
+        
         # Add to htpasswd file
         htpasswd -nbBC "$BCRYPT_ROUNDS" "$user" "$password" >> "$htpasswd_file"
     done
-
+    
     echo "✅ Credentials generated"
     return 0
 }
@@ -113,9 +113,9 @@ generate_credentials() {
 # Create Kubernetes Secret
 create_k8s_secret() {
     echo "📦 Creating Kubernetes Secret..."
-
+    
     local secret_file="$TMP_DIR/${SECRET_NAME}-secret.yaml"
-
+    
     cat > "$secret_file" << EOF
 apiVersion: v1
 kind: Secret
@@ -130,23 +130,23 @@ stringData:
   users: |
 $(sed 's/^/    /' "$TMP_DIR/users.htpasswd")
 EOF
-
+    
     echo "✅ Secret created at $secret_file"
 }
 
 # Seal the secret
 seal_secret() {
     echo "🔒 Sealing Secret with kubeseal..."
-
+    
     local secret_file="$TMP_DIR/${SECRET_NAME}-secret.yaml"
     local sealed_file="${SCRIPT_DIR}/../infra/bootstrap/secrets/${SECRET_NAME}-sealed.yaml"
-
+    
     # Ensure output directory exists
     mkdir -p "$(dirname "$sealed_file")"
-
+    
     # Seal the secret
     kubeseal --format yaml < "$secret_file" > "$sealed_file"
-
+    
     echo "✅ SealedSecret created at $sealed_file"
 }
 
@@ -178,7 +178,7 @@ main() {
     create_k8s_secret
     seal_secret
     show_instructions
-
+    
     echo ""
     echo "🎉 Credential generation completed successfully!"
 }
@@ -204,4 +204,4 @@ echo "⚠️  IMPORTANTE: Guarda las contraseñas en un lugar seguro:"
 echo "   admin: $ADMIN_PASSWORD"
 echo "   argo: $ARGO_PASSWORD"
 echo ""
-echo "🔧 Para regenerar credenciales, ejecuta este script nuevamente."
+echo "🔧 Para regenerar credenciales, ejecuta este script nuevamente." 

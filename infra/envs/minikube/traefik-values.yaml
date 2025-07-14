@@ -26,9 +26,9 @@ extraObjects:
         - '*.{{ .Values.network.domain }}'
       issuerRef:
         name: local-ca-issuer
-        kind: ClusterIssuer
+        kind: ClusterIssuer      
 
 tlsStore:
   default:
     defaultCertificate:
-      secretName: "wildcard-minikube-tls"
+      secretName: "wildcard-minikube-tls"        

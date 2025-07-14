@@ -13,4 +13,4 @@ traefik:
     tlsSecret: wildcard-minikube-tls
 
 app:
-  message: "¡Hola desde {{ .Values.environment.name | title }}!"
+  message: "¡Hola desde {{ .Values.environment.name | title }}!" 

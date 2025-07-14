@@ -1,0 +1,20 @@
+environments:
+  minikube: {}
+  netcup: {}
+
+---
+repositories:
+  - name: sealed-secrets
+    url: https://bitnami-labs.github.io/sealed-secrets
+
+releases:
+  - name: sealed-secrets
+    namespace: kube-system
+    createNamespace: false  # kube-system ya existe
+    chart: sealed-secrets/sealed-secrets
+    version: {{ requiredEnv "SEALED_SECRETS_CHART_VERSION" }}
+    values:
+      - values.yaml
+    wait: true
+    timeout: 300
+    atomic: true 

@@ -1,6 +1,0 @@
-# .shellcheckrc
-# Configuration for shellcheck
-
-# Ignore SC1091 (not following sourced files) - this is expected in our scripts
-# Ignore SC2119/SC2120 (function parameters) - these are style preferences
-disable=SC1091,SC2119,SC2120 

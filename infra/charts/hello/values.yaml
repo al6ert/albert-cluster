@@ -40,8 +40,8 @@ traefik:
     enabled: true
     entryPoints:
       - websecure
-      # certResolver: letsencrypt-prod  # Para usar ACME/Let's Encrypt
-      # tlsSecret: wildcard-minikube-tls  # Para usar certificado existente
+    # certResolver: letsencrypt-prod  # Para usar ACME/Let's Encrypt
+    # tlsSecret: wildcard-minikube-tls  # Para usar certificado existente
 
   httpIngressRoute:
     enabled: false

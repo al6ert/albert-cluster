@@ -7,4 +7,4 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
     meta.helm.sh/release-name: traefik
-    meta.helm.sh/release-namespace: traefik
+    meta.helm.sh/release-namespace: traefik 

@@ -34,4 +34,4 @@ extraObjects:
 tlsStore:
   default:
     defaultCertificate:
-      secretName: "wildcard-netcup-tls"
+      secretName: "wildcard-netcup-tls"                

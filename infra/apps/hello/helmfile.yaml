@@ -1,0 +1,17 @@
+environments:
+  minikube: {}
+  netcup: {}
+
+---
+releases:
+  - name: hello
+    namespace: hello
+    createNamespace: true
+    chart: ../../charts/hello
+    version: {{ requiredEnv "HELLO_CHART_VERSION" }}
+    values:
+      - values.yaml
+      - ../../envs/{{ .Environment.Name }}/hello-values.yaml
+    wait: true
+    timeout: 300
+    atomic: true

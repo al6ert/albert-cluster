@@ -17,8 +17,6 @@ This project implements a **pure GitOps** approach where:
 albert-cluster/
 ├── versions.env                      # 🔧 Centralized version management
 ├── .yamllint.yml                     # 📝 YAML linting configuration
-├── .pre-commit-config.yaml           # 🔧 Pre-commit hooks for code quality
-├── .shellcheckrc                     # 🔧 Shell script linting configuration
 ├── deploy-local.sh                   # 🚀 Idempotent local deployment script
 ├── .github/
 │   ├── actions/                      # 🔄 Reusable composite actions
@@ -39,18 +37,10 @@ albert-cluster/
 │   │   └── argocd-minikube.yaml     # 🎯 ArgoCD app for development (pure GitOps)
 │   ├── apps/                        # 📦 Application definitions
 │   │   ├── helmfile.yaml            # Root Helmfile with environment configurations
-│   │   ├── cert-manager/
-│   │   │   ├── helmfile.yaml.gotmpl # 🔧 Helmfile v1+ template syntax
-│   │   │   └── values.yaml
-│   │   ├── sealed-secrets/
-│   │   │   ├── helmfile.yaml.gotmpl # 🔧 Helmfile v1+ template syntax
-│   │   │   └── values.yaml
-│   │   ├── traefik/
-│   │   │   ├── helmfile.yaml.gotmpl # 🔧 Helmfile v1+ template syntax
-│   │   │   └── values.yaml
-│   │   └── hello/
-│   │       ├── helmfile.yaml.gotmpl # 🔧 Helmfile v1+ template syntax
-│   │       └── values.yaml
+│   │   ├── cert-manager/            # Certificate management
+│   │   ├── sealed-secrets/          # Secret encryption controller
+│   │   ├── traefik/                 # Ingress controller with auth
+│   │   └── hello/                   # Sample application
 │   ├── envs/                        # 🌍 Environment-specific configurations
 │   │   ├── minikube/               # Local development values
 │   │   │   ├── global-values.yaml  # Global environment configuration
@@ -94,130 +84,11 @@ albert-cluster/
 - **BCrypt**: Strong password hashing for basic auth
 - **TLS**: Automated certificate management
 
-### 🔍 Enhanced Validation & Code Quality
-- **Pre-commit hooks**: Automatic whitespace fixes and validation
+### 🔍 Enhanced Validation
 - **YAMLlint**: Consistent YAML formatting and syntax checking
-- **Shellcheck**: Shell script linting with project-specific rules
-- **Helmfile lint**: Helm template validation with proper .gotmpl syntax
+- **Helmfile lint**: Helm template validation
 - **Smoke tests**: Comprehensive functionality testing
 - **Namespace consistency**: Verification across environments
-
-## 🔧 Development Workflow
-
-### One-time Setup
-
-1. **Install pre-commit hooks**:
-```bash
-pip install pre-commit
-pre-commit install
-```
-
-2. **Install required tools**:
-```bash
-# Source centralized versions
-source versions.env
-
-# Install Helmfile
-curl -Lo helmfile https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_linux_amd64
-chmod +x helmfile && sudo mv helmfile /usr/local/bin/
-
-# Install kubeseal
-curl -Lo kubeseal https://github.com/bitnami-labs/sealed-secrets/releases/download/${KUBESEAL_VERSION}/kubeseal-linux-amd64
-chmod +x kubeseal && sudo mv kubeseal /usr/local/bin/
-```
-
-### Making Changes
-
-1. **Edit infrastructure files**:
-```bash
-# Edit application configurations
-vim infra/apps/hello/values.yaml
-
-# Edit environment-specific values
-vim infra/envs/minikube/hello-values.yaml
-```
-
-2. **Validate changes locally**:
-```bash
-# Run all linting and validation
-pre-commit run --all-files
-
-# Test Helmfile rendering
-cd infra/apps && source ../../versions.env && helmfile --environment minikube template
-
-# Test deployment
-./deploy-local.sh
-```
-
-3. **Run comprehensive tests**:
-```bash
-# Run smoke tests
-./tests/smoke.sh
-
-# Check specific components
-kubectl get pods -A
-kubectl get applications -n argocd
-```
-
-4. **Commit changes** (pre-commit hooks will auto-fix whitespace):
-```bash
-git add .
-git commit -m "Update hello app configuration"
-```
-
-5. **Push to trigger CI/CD**:
-```bash
-git push origin main
-```
-
-### Code Quality Features
-
-#### Pre-commit Hooks
-- **Auto-fixes**: Trailing whitespace, missing newlines, line endings
-- **Validation**: YAML syntax, merge conflicts, large files
-- **Linting**: YAMLlint with flexible rules, Shellcheck with project config
-- **File exclusions**: Properly excludes generated files and CRDs
-
-#### YAMLlint Configuration
-- **Flexible rules**: Warnings for line length and whitespace issues
-- **Kubernetes-friendly**: Allows truthy values, custom indentation
-- **Smart exclusions**: Ignores templates, CRDs, and generated files
-
-#### Helmfile Template Syntax
-- **Correct syntax**: Uses `{{ env "VARIABLE" }}` for environment variables
-- **Gotmpl extension**: Uses `.gotmpl` for Helmfile v1+ template processing
-- **Version injection**: Environment variables exported automatically in CI
-
-### Troubleshooting Development Issues
-
-#### Common Problems and Solutions
-
-1. **Helmfile template errors**:
-```bash
-# Ensure environment variables are exported
-source versions.env
-export TRAEFIK_CHART_VERSION CERT_MANAGER_CHART_VERSION
-
-# Check .gotmpl extensions are used
-ls infra/apps/*/helmfile.yaml.gotmpl
-```
-
-2. **Pre-commit hook failures**:
-```bash
-# Run specific hook
-pre-commit run yamllint --all-files
-
-# Update hook versions
-pre-commit autoupdate
-```
-
-3. **YAML validation issues**:
-```bash
-# Check for template syntax in plain YAML files
-grep -r "{{" infra/ --include="*.yaml" --exclude-dir=templates
-
-# Exclude problematic files in .yamllint.yml
-```
 
 ## 🚀 Quick Start
 
@@ -337,6 +208,39 @@ kubectl create secret generic cloudflare-api-token \
 - **Dev Branch**: Enhanced testing with manifest rendering
 - **Concurrency control**: Prevents parallel runs
 
+## 🔧 Development Workflow
+
+### Making Changes
+
+1. **Update versions** in `versions.env` if needed
+2. **Modify applications** in `infra/apps/` or `infra/envs/`
+3. **Test locally**:
+```bash
+# Validate changes
+./scripts/deploy.sh minikube
+
+# Run smoke tests
+./tests/smoke.sh
+```
+4. **Commit and push** - CI will validate automatically
+
+### Adding New Applications
+
+1. **Create Helmfile** in `infra/apps/new-app/`
+2. **Add to root Helmfile** in `infra/apps/helmfile.yaml`
+3. **Create environment values** in `infra/envs/*/new-app-values.yaml`
+4. **Use global values** for consistency:
+```yaml
+# Use network.domain for hostnames
+ingress:
+  hosts:
+    - host: myapp.{{ .Values.network.domain }}
+
+# Use environment.name for environment-specific config
+app:
+  message: "Running in {{ .Values.environment.name }}"
+```
+
 ## 📊 Monitoring & Debugging
 
 ### Useful Commands
@@ -369,10 +273,9 @@ kubectl describe certificate wildcard-minikube
 ## 🤝 Contributing
 
 1. **Follow the canonical structure**: Use centralized versions, global values
-2. **Use pre-commit hooks**: Install and run pre-commit for automatic fixes
-3. **Test changes locally**: Run smoke tests before committing
-4. **Update documentation**: Keep README and comments current
-5. **Security first**: Never commit secrets, use SealedSecrets
+2. **Test changes locally**: Run smoke tests before committing
+3. **Update documentation**: Keep README and comments current
+4. **Security first**: Never commit secrets, use SealedSecrets
 
 ## 📚 Additional Resources
 

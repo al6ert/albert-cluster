@@ -5,18 +5,17 @@ environments:
 ---
 repositories:
   - name: traefik
-    url: https://traefik.github.io/charts 
+    url: https://traefik.github.io/charts
 
 releases:
   - name: traefik
     namespace: traefik
     createNamespace: true
     chart: traefik/traefik
-    version: {{ requiredEnv "TRAEFIK_CHART_VERSION" }}
+    version: {{ env "TRAEFIK_CHART_VERSION" }}
     values:
       - values.yaml
       - ../../envs/{{ .Environment.Name }}/traefik-values.yaml
     wait: true
     timeout: 600
     atomic: true
-

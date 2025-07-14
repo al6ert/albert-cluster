@@ -158,4 +158,4 @@ kubectl logs -n traefik -l app.kubernetes.io/name=traefik
 
 # Estado de las aplicaciones
 kubectl get applications -n argocd -o yaml
-``` 
+```

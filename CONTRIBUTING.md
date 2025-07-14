@@ -73,4 +73,4 @@ This project and everyone participating in it is governed by our Code of Conduct
 
 ## Questions?
 
-If you have questions, please open an issue or contact the maintainers. 
+If you have questions, please open an issue or contact the maintainers.

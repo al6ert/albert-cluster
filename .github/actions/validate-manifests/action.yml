@@ -25,6 +25,19 @@ runs:
           echo "::warning::yamllint found issues, but continuing..."
         }
 
+    - name: Export version variables for Helmfile
+      shell: bash
+      run: |
+        echo "::group::Exporting version variables"
+        source versions.env
+        echo "TRAEFIK_CHART_VERSION=$TRAEFIK_CHART_VERSION" >> $GITHUB_ENV
+        echo "CERT_MANAGER_CHART_VERSION=$CERT_MANAGER_CHART_VERSION" >> $GITHUB_ENV
+        echo "SEALED_SECRETS_CHART_VERSION=$SEALED_SECRETS_CHART_VERSION" >> $GITHUB_ENV
+        echo "HELLO_CHART_VERSION=$HELLO_CHART_VERSION" >> $GITHUB_ENV
+        echo "ARGOCD_CHART_VERSION=$ARGOCD_CHART_VERSION" >> $GITHUB_ENV
+        echo "✅ Version variables exported"
+        echo "::endgroup::"
+
     - name: Render manifests for validation
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -77,4 +90,4 @@ runs:
           exit $status
         fi
         echo "✅ Helmfile diff passed - no destructive changes detected"
-        echo "::endgroup::" 
+        echo "::endgroup::"

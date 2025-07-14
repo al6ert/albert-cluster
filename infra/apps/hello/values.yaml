@@ -21,8 +21,8 @@ ingress:
       paths:
         - path: /
           pathType: Prefix
-  entryPoints:    
-    - websecure    
+  entryPoints:
+    - websecure
 
 app:
-  message: "¡Hola desde el cluster!" 
+  message: "¡Hola desde el cluster!"

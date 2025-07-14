@@ -11,7 +11,7 @@ outputs:
   helm-version:
     description: 'Helm version used'
     value: ${{ steps.versions.outputs.helm-version }}
-  
+
 runs:
   using: "composite"
   steps:
@@ -21,7 +21,7 @@ runs:
       run: |
         source versions.env
         echo "helm-version=${HELM_VERSION}" >> $GITHUB_OUTPUT
-        echo "helmfile-version=${HELMFILE_VERSION}" >> $GITHUB_OUTPUT  
+        echo "helmfile-version=${HELMFILE_VERSION}" >> $GITHUB_OUTPUT
         echo "yq-version=${YQ_VERSION}" >> $GITHUB_OUTPUT
         echo "kubectl-version=${KUBECTL_VERSION}" >> $GITHUB_OUTPUT
 
@@ -55,4 +55,4 @@ runs:
       run: |
         VERSION="${{ steps.versions.outputs.yq-version }}"
         curl -sSL "https://github.com/mikefarah/yq/releases/download/${VERSION}/yq_linux_amd64" \
-          -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq 
+          -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq

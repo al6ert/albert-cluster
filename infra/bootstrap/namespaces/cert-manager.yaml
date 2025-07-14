@@ -7,4 +7,4 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
     meta.helm.sh/release-name: cert-manager
-    meta.helm.sh/release-namespace: cert-manager 
+    meta.helm.sh/release-namespace: cert-manager

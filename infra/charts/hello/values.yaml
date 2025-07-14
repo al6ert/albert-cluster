@@ -38,11 +38,11 @@ ingress:
 traefik:
   ingressRoute:
     enabled: true
-    entryPoints:      
+    entryPoints:
       - websecure
-    # certResolver: letsencrypt-prod  # Para usar ACME/Let's Encrypt
-    # tlsSecret: wildcard-minikube-tls  # Para usar certificado existente
-  
+      # certResolver: letsencrypt-prod  # Para usar ACME/Let's Encrypt
+      # tlsSecret: wildcard-minikube-tls  # Para usar certificado existente
+
   httpIngressRoute:
     enabled: false
     entryPoints:
@@ -50,4 +50,4 @@ traefik:
 
 # Application specific settings
 app:
-  message: "¡Hola desde Minikube!" 
+  message: "¡Hola desde Minikube!"

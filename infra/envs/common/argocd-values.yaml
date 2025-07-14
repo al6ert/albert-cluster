@@ -6,4 +6,4 @@ server:
 configs:
   params:
     # Desactiva logística del repo de ejemplo
-    # server.insecure: true     # Solo si planeas proteger con Traefik+Auth 
+    # server.insecure: true     # Solo si planeas proteger con Traefik+Auth

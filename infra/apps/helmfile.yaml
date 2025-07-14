@@ -11,7 +11,7 @@ environments:
 
 helmfiles:
   # El orden **define** el sync-wave global
-  - path: ./cert-manager/helmfile.yaml   # wave 0
-  - path: ./sealed-secrets/helmfile.yaml # wave 0 (después de cert-manager)
-  - path: ./traefik/helmfile.yaml        # wave 1
-  - path: ./hello/helmfile.yaml          # wave 2
+  - path: ./cert-manager/helmfile.yaml.gotmpl   # wave 0
+  - path: ./sealed-secrets/helmfile.yaml.gotmpl # wave 0 (después de cert-manager)
+  - path: ./traefik/helmfile.yaml.gotmpl        # wave 1
+  - path: ./hello/helmfile.yaml.gotmpl          # wave 2

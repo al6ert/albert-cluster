@@ -16,7 +16,7 @@ releases:
     createNamespace: true
     chart: jetstack/cert-manager
     version: {{ env "CERT_MANAGER_CHART_VERSION" }}
-    values:
+    values:      
       - values.yaml
       - ../../envs/{{ .Environment.Name }}/cert-manager-values.yaml
     wait: true

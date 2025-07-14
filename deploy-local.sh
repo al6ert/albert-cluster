@@ -52,19 +52,24 @@ wait_for_crds() {
 wait_for_sealed_secrets() {
     echo "🔓 Waiting for SealedSecrets to be unsealed..."
     
-    # Get all SealedSecrets and wait for their corresponding Secrets to be created
-    while IFS= read -r ss_info; do
-        if [ -n "$ss_info" ]; then
-            local ns=$(echo "$ss_info" | cut -d' ' -f1)
-            local name=$(echo "$ss_info" | cut -d' ' -f2)
-            echo "  - Waiting for $name in namespace $ns..."
-            
-            # Wait for SealedSecret to be processed
-            kubectl wait sealedsecret/"$name" -n "$ns" --for=condition=Sealed=true --timeout=60s || {
-                echo "    ⚠️ SealedSecret $name unsealing timed out"
-            }
-        fi
-    done < <(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+    # List of secret_name:namespace pairs without associative array (for Bash 3.x compatibility)
+    local sealed_secrets=(
+        "admin-basic-auth:admin"
+        "cloudflare-api-token:cert-manager"
+    )
+    
+    for item in "${sealed_secrets[@]}"; do
+        local secret_name="${item%:*}"
+        local ns="${item#*:}"
+        echo "  - Waiting for $secret_name in namespace $ns..."
+        
+        # Wait for Secret to exist and have data
+        kubectl wait secret/"$secret_name" -n "$ns" --for=jsonpath='{.data}'=non-empty --timeout=120s || {
+            echo "    ⚠️ Secret $secret_name not unsealed within timeout"
+            # Debug: Check logs
+            kubectl logs -n kube-system -l name=sealed-secrets-controller | grep "$secret_name" || echo "No logs found for $secret_name"
+        }
+    done
     
     echo "✅ SealedSecrets processing completed"
 }
@@ -84,6 +89,22 @@ apply_bootstrap() {
     echo "::group::Phase 2: Secrets and Middlewares"
     kubectl apply -k secrets/
     kubectl apply -k middlewares/
+    echo "::endgroup::"
+    
+    echo "::group::Phase 2.5: SealedSecrets Controller"
+    echo "Installing SealedSecrets controller before waiting for unsealing..."
+    cd "${SCRIPT_DIR}/infra/apps/sealed-secrets"
+    
+    # Export versions for Helmfile templates
+    export SEALED_SECRETS_CHART_VERSION
+    
+    # Install only the SealedSecrets controller
+    helmfile --environment minikube apply --suppress-secrets
+    
+    echo "⏳ Waiting for SealedSecrets controller to be ready..."
+    kubectl wait deployment sealed-secrets-controller -n kube-system --for=condition=Available --timeout=300s
+    
+    cd "${SCRIPT_DIR}/infra/bootstrap"
     echo "::endgroup::"
     
     wait_for_sealed_secrets
@@ -110,8 +131,8 @@ deploy_applications() {
     export SEALED_SECRETS_CHART_VERSION
     export HELLO_CHART_VERSION
     
-    # Apply applications idempotently
-    helmfile --environment minikube apply --suppress-secrets
+    # Apply applications idempotently (excluding SealedSecrets as it's already installed in bootstrap)
+    helmfile --environment minikube apply --suppress-secrets --selector 'name!=sealed-secrets'
     
     echo "⏳ Waiting for all deployments to be ready..."
     kubectl wait deployment --all -A --for=condition=Available --timeout=300s || {

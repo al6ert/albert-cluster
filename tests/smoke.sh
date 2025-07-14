@@ -30,15 +30,16 @@ log_error() {
 test_pods_running() {
     echo "📋 Test 1: Verificando que todos los pods están Running..."
     
-    CRASHED_PODS=$(kubectl get pods --all-namespaces --field-selector=status.phase!=Running -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+    # CORREGIDO: Excluir pods "Completed" que son normales para jobs
+    CRASHED_PODS=$(kubectl get pods --all-namespaces --field-selector=status.phase!=Running,status.phase!=Succeeded -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
     
     if [ -n "$CRASHED_PODS" ]; then
-        log_error "Found pods not in Running state:"
-        kubectl get pods --all-namespaces --field-selector=status.phase!=Running
+        log_error "Found pods not in Running/Succeeded state:"
+        kubectl get pods --all-namespaces --field-selector=status.phase!=Running,status.phase!=Succeeded
         return 1
     fi
     
-    log_info "All pods are running"
+    log_info "All pods are running or completed successfully"
     return 0
 }
 
@@ -57,8 +58,8 @@ test_readiness() {
 test_hello_app() {
     echo "🌐 Test 3: Verificando Hello app (curl 200 OK)..."
     
-    # Usar port-forward para acceder al servicio
-    kubectl port-forward svc/hello 8080:80 -n traefik &
+    # Usar port-forward para acceder al servicio - CORREGIDO: usar namespace hello
+    kubectl port-forward svc/hello 8080:80 -n hello &
     PF_PID=$!
     
     # Esperar a que port-forward esté listo
@@ -89,22 +90,20 @@ test_hello_app() {
 test_traefik_auth() {
     echo "🔐 Test 4: Verificando Traefik dashboard auth (401 expected)..."
     
-    kubectl port-forward svc/traefik 8080:9000 -n traefik &
-    PF_PID=$!
-    
-    sleep 5
-    
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/dashboard/ || echo "000")
+    # CORREGIDO: Verificar dashboard via IngressRoute (acceso externo)
+    # El dashboard está configurado para requerir autenticación básica
+    HTTP_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" https://traefik.127.0.0.1.nip.io/dashboard/ || echo "000")
     
     if [ "$HTTP_CODE" = "401" ]; then
         log_info "Traefik dashboard correctly requires authentication (401)"
+    elif [ "$HTTP_CODE" = "000" ]; then
+        log_warn "Could not reach Traefik dashboard (network/DNS issue)"
+        return 1
     else
         log_error "Traefik dashboard should return 401 (auth required), got $HTTP_CODE"
-        kill $PF_PID 2>/dev/null || true
         return 1
     fi
     
-    kill $PF_PID 2>/dev/null || true
     return 0
 }
 
@@ -112,16 +111,20 @@ test_traefik_auth() {
 test_critical_services() {
     echo "🔧 Test 5: Verificando servicios críticos..."
     
-    CRITICAL_SERVICES=("traefik" "hello")
+    # CORREGIDO: Verificar cada servicio en su namespace correspondiente
+    if kubectl get svc traefik -n traefik >/dev/null 2>&1; then
+        log_info "Service traefik exists in namespace traefik"
+    else
+        log_error "Critical service traefik not found in namespace traefik"
+        return 1
+    fi
     
-    for service in "${CRITICAL_SERVICES[@]}"; do
-        if kubectl get svc "$service" -n traefik >/dev/null 2>&1; then
-            log_info "Service $service exists"
-        else
-            log_error "Critical service $service not found"
-            return 1
-        fi
-    done
+    if kubectl get svc hello -n hello >/dev/null 2>&1; then
+        log_info "Service hello exists in namespace hello"
+    else
+        log_error "Critical service hello not found in namespace hello"
+        return 1
+    fi
     
     return 0
 }
@@ -130,7 +133,8 @@ test_critical_services() {
 test_namespaces() {
     echo "📁 Test 6: Verificando namespaces críticos..."
     
-    CRITICAL_NAMESPACES=("traefik" "admin" "cert-manager")
+    # CORREGIDO: Incluir namespace hello en la lista
+    CRITICAL_NAMESPACES=("traefik" "hello" "admin" "cert-manager")
     
     for ns in "${CRITICAL_NAMESPACES[@]}"; do
         if kubectl get namespace "$ns" >/dev/null 2>&1; then

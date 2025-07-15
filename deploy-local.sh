@@ -185,29 +185,34 @@ show_status() {
     echo "  Pods Running: $(kubectl get pods -A --field-selector=status.phase=Running | wc -l)"
     echo "  CRDs: $(kubectl get crd | grep -E '(cert-manager|traefik|bitnami|argoproj)' | wc -l)"
     echo "  SealedSecrets: $(kubectl get sealedsecrets -A --no-headers 2>/dev/null | wc -l)"
-    
     echo ""
-    echo "🌐 Access URLs:"
-    echo "  Traefik Dashboard: https://traefik.127.0.0.1.nip.io/dashboard/"
-    echo "  Hello App: http://hello.127.0.0.1.nip.io"
+    echo "🌐 Access URLs (Ingress):"
+    kubectl get ingress --all-namespaces -o json | jq -r '
+      .items[] | . as $ingress | 
+      .spec.rules[]? | 
+      "  - " + .host + (.http.paths[]? | "\(.path) => namespace: \($ingress.metadata.namespace), svc: \($ingress.spec.rules[0].http.paths[0].backend.service.name)")'
     echo ""
-    echo "🔐 Default credentials: admin / admin"
-    echo ""
-    echo "💡 To check pod status: kubectl get pods -A"
-    echo "💡 To check application logs: kubectl logs -n traefik -l app.kubernetes.io/name=traefik"
-    
     # Mostrar credenciales generadas si existen
     PASSWORDS_FILE="/tmp/admin-basic-auth-passwords.txt"
     if [ -f "$PASSWORDS_FILE" ]; then
-        echo ""
         echo "🔑 Basic Auth credentials (from $PASSWORDS_FILE):"
         cat "$PASSWORDS_FILE"
         echo ""
     else
-        echo ""
         echo "⚠️  No se encontró el archivo de contraseñas generadas ($PASSWORDS_FILE). Si necesitas las credenciales, revisa la salida de generate-credentials.sh."
         echo ""
     fi
+    # Mostrar password real de ArgoCD
+    ARGOCD_PWD=$(kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' 2>/dev/null | base64 --decode || kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.admin\\.password}' 2>/dev/null | base64 --decode)
+    if [ -n "$ARGOCD_PWD" ]; then
+        echo "🔑 ArgoCD admin password: $ARGOCD_PWD"
+        echo "  Login: https://argo.127.0.0.1.nip.io (user: admin)"
+    else
+        echo "⚠️  No se pudo obtener el password de ArgoCD admin."
+    fi
+    echo ""
+    echo "💡 To check pod status: kubectl get pods -A"
+    echo "💡 To check application logs: kubectl logs -n traefik -l app.kubernetes.io/name=traefik"
 }
 
 main() {

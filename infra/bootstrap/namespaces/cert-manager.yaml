@@ -4,6 +4,7 @@ metadata:
   name: cert-manager
   labels:
     app.kubernetes.io/managed-by: Helm
+    argocd.argoproj.io/managed-by: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "0"
     meta.helm.sh/release-name: cert-manager

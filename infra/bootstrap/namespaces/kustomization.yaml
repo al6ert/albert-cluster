@@ -4,3 +4,4 @@ resources:
   - admin.yaml
   - cert-manager.yaml
   - argocd.yaml
+  - hello.yaml

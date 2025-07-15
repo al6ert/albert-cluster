@@ -165,6 +165,7 @@ deploy_applications() {
     export CERT_MANAGER_CHART_VERSION  
     export SEALED_SECRETS_CHART_VERSION
     export HELLO_CHART_VERSION
+    export ARGOCD_CHART_VERSION
     
     # Apply applications idempotently (excluding SealedSecrets as it's already installed in bootstrap)
     helmfile --environment minikube apply --suppress-secrets --selector 'name!=sealed-secrets'

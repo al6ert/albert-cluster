@@ -14,4 +14,5 @@ helmfiles:
   - path: ./cert-manager/helmfile.yaml.gotmpl   # wave 0
   - path: ./sealed-secrets/helmfile.yaml.gotmpl # wave 0 (después de cert-manager)
   - path: ./traefik/helmfile.yaml.gotmpl        # wave 1
-  - path: ./hello/helmfile.yaml.gotmpl          # wave 2
+  - path: ./argocd/helmfile.yaml.gotmpl         # wave 2
+  - path: ./hello/helmfile.yaml.gotmpl          # wave 3

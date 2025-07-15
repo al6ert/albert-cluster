@@ -1,0 +1,37 @@
+global:
+  domain: ""  # Overridea esto en global-values.yaml si no lo defines aquí
+
+crds:
+  enabled: false
+  
+server:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - argo.{{ .Values.global.domain }}
+    paths:
+      - path: /
+        pathType: Prefix
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.middlewares: admin-basic-auth@kubernetescrd
+      cert-manager.io/cluster-issuer: letsencrypt-prod  # Cambia a tu issuer de Cert-Manager
+    tls:
+      - hosts:
+          - argo.{{ .Values.global.domain }}
+        secretName: argo-tls  # Nombre del secreto TLS generado por Cert-Manager
+  service:
+    type: ClusterIP
+
+# Otras configs opcionales (ej. para desactivar GRPC si no lo usas, o args extras)
+server:
+  extraArgs:
+    - --insecure  # Solo para testing; remueve en producción para mayor seguridad 
+
+dex:
+  enabled: false  # Deshabilita Dex (deprecated, no necesario para tu auth básica)
+
+configs:
+  params: 
+    create: false # Define estructura vacía para evitar nil pointer en templates    

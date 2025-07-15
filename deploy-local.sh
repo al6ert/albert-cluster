@@ -33,6 +33,13 @@ check_prerequisites() {
         echo "   Install with: curl -Lo helmfile https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_linux_amd64"
         exit 1
     fi
+
+    # Check if kubeseal is available
+    if ! command -v kubeseal >/dev/null 2>&1; then
+        echo "❌ kubeseal not found. Please install kubeseal first."
+        echo "   Install with: curl -Lo kubeseal https://github.com/bitnami-labs/sealed-secrets/releases/download/v${KUBESEAL_VERSION#v}/kubeseal-darwin-amd64 && chmod +x kubeseal && sudo mv kubeseal /usr/local/bin/"
+        exit 1
+    fi
     
     echo "✅ Prerequisites check passed"
 }
@@ -92,25 +99,47 @@ apply_bootstrap() {
     
     wait_for_crds
     
-    echo "::group::Phase 2: Secrets and Middlewares"
-    kubectl apply -k secrets/
+    echo "::group::Phase 2: Middlewares (before secrets)"
     kubectl apply -k middlewares/
     echo "::endgroup::"
     
     echo "::group::Phase 2.5: SealedSecrets Controller"
-    echo "Installing SealedSecrets controller before waiting for unsealing..."
+    echo "Installing SealedSecrets controller before secrets..."
     cd "${SCRIPT_DIR}/infra/apps/sealed-secrets"
     
     # Export versions for Helmfile templates
     export SEALED_SECRETS_CHART_VERSION
-    
-    # Install only the SealedSecrets controller
     helmfile --environment minikube apply --suppress-secrets
     
     echo "⏳ Waiting for SealedSecrets controller to be ready..."
-    kubectl wait deployment sealed-secrets-controller -n kube-system --for=condition=Available --timeout=300s
+    kubectl wait deployment sealed-secrets -n kube-system --for=condition=Available --timeout=300s
     
     cd "${SCRIPT_DIR}/infra/bootstrap"
+    echo "::endgroup::"
+    
+    echo "::group::Phase 2.6: Generate and apply fresh SealedSecrets"
+    # Generate admin-basic-auth using the script (defaults: namespace=admin, users=admin)
+    bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --namespace admin --users admin --secret-name admin-basic-auth
+    # Apply the freshly generated sealed secret
+    kubectl apply -f "${SCRIPT_DIR}/infra/bootstrap/secrets/admin-basic-auth-sealed.yaml"
+    
+    # Generate cloudflare-api-token with dummy for local
+    echo "Generating dummy Cloudflare API token secret for local..."
+    TMP_SECRET_YAML=$(mktemp)
+    cat > "$TMP_SECRET_YAML" << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-api-token
+  namespace: cert-manager
+type: Opaque
+stringData:
+  api-token: dummy-cloudflare-token
+EOF
+    TMP_SEALED_YAML=$(mktemp)
+    kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system --format yaml < "$TMP_SECRET_YAML" > "$TMP_SEALED_YAML"
+    kubectl apply -f "$TMP_SEALED_YAML"
+    rm -f "$TMP_SECRET_YAML" "$TMP_SEALED_YAML"
     echo "::endgroup::"
     
     wait_for_sealed_secrets
@@ -165,6 +194,19 @@ show_status() {
     echo ""
     echo "💡 To check pod status: kubectl get pods -A"
     echo "💡 To check application logs: kubectl logs -n traefik -l app.kubernetes.io/name=traefik"
+    
+    # Mostrar credenciales generadas si existen
+    PASSWORDS_FILE="/tmp/admin-basic-auth-passwords.txt"
+    if [ -f "$PASSWORDS_FILE" ]; then
+        echo ""
+        echo "🔑 Basic Auth credentials (from $PASSWORDS_FILE):"
+        cat "$PASSWORDS_FILE"
+        echo ""
+    else
+        echo ""
+        echo "⚠️  No se encontró el archivo de contraseñas generadas ($PASSWORDS_FILE). Si necesitas las credenciales, revisa la salida de generate-credentials.sh."
+        echo ""
+    fi
 }
 
 main() {

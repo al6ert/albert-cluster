@@ -8,6 +8,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../versions.env"
 
+# Cargar passwords fijos desde .env.local si existe
+ENV_LOCAL_FILE="${SCRIPT_DIR}/../.env.local"
+if [ -f "$ENV_LOCAL_FILE" ]; then
+    # Exporta las variables definidas en .env.local
+    set -a
+    . "$ENV_LOCAL_FILE"
+    set +a
+fi
+
 # Default values (can be overridden)
 NAMESPACE="${NAMESPACE:-admin}"
 USERS="${USERS:-admin,argo}"
@@ -93,18 +102,32 @@ generate_credentials() {
     
     # Parse users and generate passwords
     IFS=',' read -ra USER_ARRAY <<< "$USERS"
-    declare -A PASSWORDS
+    PASSWORDS_FILE="$TMP_DIR/passwords.txt"
+    > "$PASSWORDS_FILE"
     
     for user in "${USER_ARRAY[@]}"; do
         user=$(echo "$user" | xargs)  # trim whitespace
-        password=$(openssl rand -base64 20)
-        PASSWORDS["$user"]="$password"
-        
+        # Si hay password fijo en env, úsalo
+        case "$user" in
+            admin)
+                password="${ADMIN_PASSWORD:-}"
+                ;;
+            argo)
+                password="${ARGO_PASSWORD:-}"
+                ;;
+            *)
+                password=""
+                ;;
+        esac
+        if [ -z "$password" ]; then
+            password=$(openssl rand -base64 20)
+        fi
+        echo "$user:$password" >> "$PASSWORDS_FILE"
         echo "🔑 $user: $password"
-        
-        # Add to htpasswd file
         htpasswd -nbBC "$BCRYPT_ROUNDS" "$user" "$password" >> "$htpasswd_file"
     done
+    # Copiar el archivo de passwords a /tmp para que deploy-local.sh lo muestre
+    cp "$PASSWORDS_FILE" /tmp/admin-basic-auth-passwords.txt
     
     echo "✅ Credentials generated"
     return 0
@@ -145,7 +168,7 @@ seal_secret() {
     mkdir -p "$(dirname "$sealed_file")"
     
     # Seal the secret
-    kubeseal --format yaml < "$secret_file" > "$sealed_file"
+    kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system --format yaml < "$secret_file" > "$sealed_file"
     
     echo "✅ SealedSecret created at $sealed_file"
 }
@@ -165,9 +188,8 @@ show_instructions() {
     echo "   kubectl get secret ${SECRET_NAME} -n ${NAMESPACE}"
     echo ""
     echo "🔐 Generated credentials (save these securely):"
-    for user in "${USER_ARRAY[@]}"; do
-        user=$(echo "$user" | xargs)
-        echo "   $user: ${PASSWORDS[$user]}"
+    cat "$PASSWORDS_FILE" | while IFS=: read user password; do
+        echo "   $user: $password"
     done
 }
 
@@ -186,22 +208,4 @@ main() {
 # Allow sourcing this script for testing
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
-fi
-echo ""
-
-# Limpiar archivos temporales
-echo "🧹 Limpiando archivos temporales..."
-rm -f tmp/admin-basic-auth-secret.yaml
-
-echo "🎉 ¡Credenciales generadas exitosamente!"
-echo ""
-echo "📋 Resumen:"
-echo "   - Archivo htpasswd: tmp/admin.htpasswd"
-echo "   - SealedSecret: infra/bootstrap/secrets/admin-basic-auth-sealed.yaml"
-echo "   - Usuarios: admin, argo"
-echo ""
-echo "⚠️  IMPORTANTE: Guarda las contraseñas en un lugar seguro:"
-echo "   admin: $ADMIN_PASSWORD"
-echo "   argo: $ARGO_PASSWORD"
-echo ""
-echo "🔧 Para regenerar credenciales, ejecuta este script nuevamente." 
+fi 

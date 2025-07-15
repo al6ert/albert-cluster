@@ -14,5 +14,5 @@ releases:
     namespace: argocd
     values:
       - values.yaml  # Valores locales para Ingress y middleware 
-      # - ../../envs/common/argocd-values.yaml  # Valores comunes (si existe y lo usas)
-      # - ../../envs/{{ .Environment.Name }}/argocd-values.yaml  # Opcional, para valores por entorno
+      - ../../envs/{{ .Environment.Name }}/global-values.yaml      
+      

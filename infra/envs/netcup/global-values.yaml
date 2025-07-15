@@ -6,6 +6,9 @@ environment:
   name: netcup
   type: production
 
+domain: albertperez.dev
+tls: wildcard-netcup-tls
+
 # Configuración de red
 network:
   domain: "albertperez.dev"

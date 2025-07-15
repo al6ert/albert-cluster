@@ -6,6 +6,9 @@ environment:
   name: minikube
   type: development
 
+domain: 127.0.0.1.nip.io
+tls: wildcard-minikube-tls
+
 # Configuración de red
 network:
   domain: "127.0.0.1.nip.io"

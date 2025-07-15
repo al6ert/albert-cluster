@@ -14,5 +14,6 @@ releases:
     namespace: argocd
     values:
       - values.yaml  # Valores locales para Ingress y middleware 
+      - values-helmfile.yaml  # Configuración para Helmfile plugin
       - ../../envs/{{ .Environment.Name }}/global-values.yaml      
       

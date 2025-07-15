@@ -20,8 +20,3 @@ server:
 dex:
   enabled: false  # Deshabilita Dex (deprecated, no necesario para tu auth básica)
 
-configs:
-  params: 
-    create: false # Define estructura vacía para evitar nil pointer en templates    
-    server.insecure: true 
-    application.namespaces: "*" # Permite gestionar aplicaciones en todos los namespaces 

@@ -7,3 +7,5 @@ metadata:
     kubernetes.io/metadata.name: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "0" 
+    meta.helm.sh/release-name: "argocd"
+    meta.helm.sh/release-namespace: "argocd"

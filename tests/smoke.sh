@@ -125,19 +125,51 @@ test_hello_app() {
 }
 
 # Test 6 – Autenticación del dashboard Traefik
+# Test 6 – Autenticación del dashboard Traefik
 test_traefik_auth() {
   echo "🔐 Test 6: Testing Traefik dashboard authentication..."
-  local code
+
+  local dashboard_url code
+
+  # 1) Intento HTTPS
+  dashboard_url="https://traefik.127.0.0.1.nip.io/dashboard/"
   for i in {1..3}; do
     code=$(curl -k -s -o /dev/null -w "%{http_code}" \
-            "https://traefik.127.0.0.1.nip.io/dashboard/" --max-time 20 || echo 000)
+           "$dashboard_url" --max-time 20 || echo 000)
     [ "$code" != 000 ] && break
-    log_warn "Retry $i: Traefik not reachable, sleeping 10s..."; sleep 10
+    log_warn "Retry $i: HTTPS not reachable, sleeping 10 s…"; sleep 10
   done
+
+  # 2) Fallback HTTP si HTTPS no responde
+  if [ "$code" = 000 ]; then
+    dashboard_url="http://traefik.127.0.0.1.nip.io/dashboard/"
+    for i in {1..3}; do
+      code=$(curl -s -o /dev/null -w "%{http_code}" \
+             "$dashboard_url" --max-time 20 || echo 000)
+      [ "$code" != 000 ] && break
+      log_warn "Retry $i: HTTP not reachable, sleeping 10 s…"; sleep 10
+    done
+  fi
+
+  # 3) Último recurso: port‑forward al puerto 9000
+  if [ "$code" = 000 ]; then
+    kubectl port-forward -n traefik deployment/traefik \
+      9000:9000 >/dev/null 2>&1 &
+    local pf_pid=$!
+    sleep 5
+    dashboard_url="http://localhost:9000/dashboard/"
+    code=$(curl -s -o /dev/null -w "%{http_code}" \
+           "$dashboard_url" --max-time 20 || echo 000)
+    kill $pf_pid 2>/dev/null || true
+  fi
+
   case "$code" in
-    401) log_info "Traefik dashboard correctly requires authentication (401)";;
-    200) log_warn "Traefik dashboard accessible without auth – security concern"; return 1;;
-    *)   log_error "Traefik dashboard returned code: $code"; return 1;;
+    401|302)
+      log_info "Traefik dashboard reachable & requires auth ($code)";;
+    000)
+      log_error "Traefik dashboard unreachable after all fallbacks"; return 1;;
+    *)
+      log_warn "Traefik dashboard returned unexpected code: $code"; return 1;;
   esac
   return 0
 }

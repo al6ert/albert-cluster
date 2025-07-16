@@ -56,8 +56,9 @@ runs:
       run: |
         VERSION="${{ steps.versions.outputs.yq-version }}"
         curl -sSL "https://github.com/mikefarah/yq/releases/download/${VERSION}/yq_linux_amd64" \
-          -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq 
-        
-    - name: Install kubeseal
-      uses: digitalservicebund/setup-kubeseal@${KUBESEAL_VERSION}
+          -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq             
     
+    - name: Install kubeseal
+      uses: digitalservicebund/setup-kubeseal@main
+      with:
+        version: ${{ steps.versions.outputs.kubeseal-version }}

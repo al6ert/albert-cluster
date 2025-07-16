@@ -59,6 +59,10 @@ runs:
           -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq             
     
     - name: Install kubeseal
-      uses: digitalservicebund/setup-kubeseal@main
-      with:
-        version: ${{ steps.versions.outputs.kubeseal-version }}
+      shell: bash
+      run: |
+        VERSION="${{ steps.versions.outputs.kubeseal-version }}"  # e.g., v0.26.0
+        STRIPPED_VERSION="${VERSION#v}"  # e.g., 0.26.0
+        curl -sSL "https://github.com/bitnami-labs/sealed-secrets/releases/download/${VERSION}/kubeseal-${STRIPPED_VERSION}-linux-amd64" \
+          -o /usr/local/bin/kubeseal && sudo chmod +x /usr/local/bin/kubeseal
+        kubeseal --version  # Verify installation

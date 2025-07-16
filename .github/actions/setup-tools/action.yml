@@ -57,9 +57,10 @@ runs:
         VERSION="${{ steps.versions.outputs.yq-version }}"
         curl -sSL "https://github.com/mikefarah/yq/releases/download/${VERSION}/yq_linux_amd64" \
           -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq 
+    
     - name: Install kubeseal
       shell: bash
       run: |
         VERSION="${{ steps.versions.outputs.kubeseal-version }}"
-        curl -sSL "https://github.com/bitnami-labs/sealed-secrets/releases/download/${VERSION}/kubeseal-linux-amd64" \
-          -o /usr/local/bin/kubeseal && sudo chmod +x /usr/local/bin/kubeseal 
+        curl -sSL "https://github.com/bitnami-labs/sealed-secrets/releases/download/${VERSION}/kubeseal-${VERSION#v}-linux-amd64" \
+          -o /usr/local/bin/kubeseal && sudo chmod +x /usr/local/bin/kubeseal

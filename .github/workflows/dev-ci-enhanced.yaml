@@ -86,7 +86,7 @@ jobs:
           
           echo "::group::Phase 3.6: Generate and Apply Sealed Secrets (Dynamic for CI)"
           sudo apt-get update && sudo apt-get install -y apache2-utils
-          ../scripts/generate-credentials.sh --namespace admin --users admin --secret-name admin-basic-auth
+          ../../scripts/generate-credentials.sh --namespace admin --users admin --secret-name admin-basic-auth
           kubectl apply -f secrets/admin-basic-auth-sealed.yaml
           echo "::endgroup::"
           

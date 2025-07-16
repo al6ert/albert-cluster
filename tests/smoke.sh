@@ -321,6 +321,11 @@ main() {
         else
             log_error "Test failed: $test_func"
             ((failed_tests++))
+            # Debug: Muestra pods y logs en failure
+            kubectl get pods -A -o wide
+            kubectl describe pods -A | grep -i error  # O filter por namespace
+            # Ejemplo para logs de pod failing
+            kubectl logs -n argocd -l app.kubernetes.io/name=argocd-repo-server --tail=50 || echo "No logs"
         fi
     done
     

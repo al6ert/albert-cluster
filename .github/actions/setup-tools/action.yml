@@ -61,8 +61,12 @@ runs:
     - name: Install kubeseal
       shell: bash
       run: |
-        VERSION="${{ steps.versions.outputs.kubeseal-version }}"  # e.g., v0.26.0
-        STRIPPED_VERSION="${VERSION#v}"  # e.g., 0.26.0
-        curl -sSL "https://github.com/bitnami-labs/sealed-secrets/releases/download/${VERSION}/kubeseal-${STRIPPED_VERSION}-linux-amd64" \
-          -o /usr/local/bin/kubeseal && sudo chmod +x /usr/local/bin/kubeseal
-        kubeseal --version  # Verify installation
+        VERSION="${{ steps.versions.outputs.kubeseal-version }}"
+        STRIPPED_VERSION="${VERSION#v}"
+        curl -sSL "https://github.com/bitnami-labs/sealed-secrets/releases/download/${VERSION}/kubeseal-${STRIPPED_VERSION}-linux-amd64.tar.gz" \
+          -o kubeseal.tar.gz
+        tar -xzvf kubeseal.tar.gz
+        sudo mv kubeseal /usr/local/bin/kubeseal
+        sudo chmod +x /usr/local/bin/kubeseal
+        rm kubeseal.tar.gz
+        kubeseal --version  # Verify

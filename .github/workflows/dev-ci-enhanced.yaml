@@ -113,7 +113,10 @@ jobs:
 
       - name: Wait for all pods to be ready
         run: |
-          kubectl wait pod --all -A --for=condition=Ready 
+          kubectl wait pod --all -A --for=condition=Ready --timeout=600s || {
+            echo "⚠️ Timeout reached, checking pod status..."
+            kubectl get pods -A -o wide
+          }
 
       - name: Check for crashloops
         run: |

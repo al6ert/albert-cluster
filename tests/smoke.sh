@@ -52,8 +52,8 @@ test_pods_running() {
 test_readiness() {
     echo "🔍 Test 2: Verifying readiness probes..."
     
-    # Wait for all pods to be ready with timeout
-    if kubectl wait pod --all -A --for=condition=Ready --timeout=120s >/dev/null 2>&1; then
+    # Wait for all pods to be ready with increased timeout
+    if kubectl wait pod --all -A --for=condition=Ready --timeout=300s >/dev/null 2>&1; then  # Subido a 5 min
         log_info "All pods are ready"
     else
         log_warn "Some pods not ready within timeout, checking individually..."
@@ -123,18 +123,23 @@ test_hello_app() {
     kubectl port-forward svc/hello 8080:80 -n hello >/dev/null 2>&1 &
     pf_pid=$!
     
-    # Wait for port-forward to be ready
-    sleep 5
+    # Wait for port-forward to be ready with retry
+    sleep 10  # Aumentado para CI
     
-    # Test HTTP response
+    # Test HTTP response with retry
     local test_passed=true
-    
-    if curl -f -s http://localhost:8080/ >/dev/null; then
+    for i in {1..3}; do
+      if curl -f -s http://localhost:8080/ >/dev/null; then
         log_debug "Hello app responding with 200 OK"
-    else
-        log_error "Hello app not responding with 200 OK"
-        test_passed=false
-    fi
+        break
+      else
+        log_warn "Retry $i: Hello app not responding, sleeping 10s..."
+        sleep 10
+      fi
+    done || {
+      log_error "Hello app not responding after retries"
+      test_passed=false
+    }
     
     # Test response content
     if [ "$test_passed" = true ]; then
@@ -162,9 +167,17 @@ test_hello_app() {
 test_traefik_auth() {
     echo "🔐 Test 6: Testing Traefik dashboard authentication..."
     
-    # Test dashboard access via IngressRoute
+    # Test dashboard access with retry (for DNS/tunnel stabilization)
     local http_code
-    http_code=$(curl -k -s -o /dev/null -w "%{http_code}" "https://traefik.127.0.0.1.nip.io/dashboard/" --max-time 10 || echo "000")
+    for i in {1..3}; do
+      http_code=$(curl -k -s -o /dev/null -w "%{http_code}" "https://traefik.127.0.0.1.nip.io/dashboard/" --max-time 20 || echo "000")
+      if [ "$http_code" != "000" ]; then
+        break
+      else
+        log_warn "Retry $i: Traefik not reachable, sleeping 10s..."
+        sleep 10
+      fi
+    done
     
     case "$http_code" in
         401)

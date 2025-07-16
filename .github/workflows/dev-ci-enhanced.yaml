@@ -29,11 +29,6 @@ jobs:
         with:
           cache-key: ${{ runner.os }}-helm-dev-${{ github.sha }}
 
-      - name: Validate Manifests (minikube)
-        uses: ./.github/actions/validate-manifests
-        with:
-          environment: minikube
-
       - name: Cache Minikube
         uses: actions/cache@v4
         with:
@@ -54,6 +49,11 @@ jobs:
           minikube profile minikube-${{ github.sha }}
           minikube addons disable ingress
           minikube addons disable storage-provisioner
+
+      - name: Validate Manifests (minikube)
+        uses: ./.github/actions/validate-manifests
+        with:
+          environment: minikube          
 
       - name: Bootstrap cluster (Enhanced phased approach)
         run: |

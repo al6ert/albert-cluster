@@ -48,12 +48,7 @@ jobs:
         run: |
           minikube profile minikube-${{ github.sha }}
           minikube addons disable ingress
-          minikube addons disable storage-provisioner
-
-      - name: Validate Manifests (minikube)
-        uses: ./.github/actions/validate-manifests
-        with:
-          environment: minikube          
+          minikube addons disable storage-provisioner     
 
       - name: Bootstrap cluster (Enhanced phased approach)
         run: |
@@ -111,6 +106,11 @@ jobs:
           echo "::endgroup::"
           
           echo "✅ Bootstrap completed successfully with enhanced phased approach"
+
+      - name: Validate Manifests (minikube)
+        uses: ./.github/actions/validate-manifests
+        with:
+          environment: minikube    
 
       - name: Pre-pull container images
         run: |

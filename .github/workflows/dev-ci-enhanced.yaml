@@ -67,8 +67,11 @@ jobs:
             xargs kubectl wait --for=condition=Established --timeout=180s
           echo "::endgroup::"
           
-          echo "::group::Phase 3: Apply Full Bootstrap with Kustomize"
-          kubectl apply -k .  # Aplica namespaces, rbac, secrets, middlewares, argocd apps
+          echo "::group::Phase 3: Apply Namespaces, RBAC, Middlewares, and ArgoCD Apps"
+          kubectl apply -k namespaces/
+          kubectl apply -f rbac/gh-actions.yaml
+          kubectl apply -k middlewares/
+          kubectl apply -f argocd-minikube.yaml
           echo "::endgroup::"
           
           echo "::group::Phase 3.5: Install SealedSecrets Controller"
@@ -79,6 +82,12 @@ jobs:
             kubectl logs -n kube-system -l name=sealed-secrets-controller
           }
           cd ../../bootstrap
+          echo "::endgroup::"
+          
+          echo "::group::Phase 3.6: Generate and Apply Sealed Secrets (Dynamic for CI)"
+          sudo apt-get update && sudo apt-get install -y apache2-utils
+          ../scripts/generate-credentials.sh --namespace admin --users admin --secret-name admin-basic-auth
+          kubectl apply -f secrets/admin-basic-auth-sealed.yaml
           echo "::endgroup::"
           
           echo "::group::Phase 4: Wait for SealedSecrets Unsealing"
@@ -93,7 +102,9 @@ jobs:
           echo "::endgroup::"
           
           echo "::group::Phase 5: Final Verification"
-          # Tu código de verification...
+          echo "Checking unsealed Secrets:"
+          kubectl get secret admin-basic-auth -n admin || echo "⚠️ admin-basic-auth Secret not found"
+          kubectl logs -n kube-system -l name=sealed-secrets-controller | grep -i error || echo "No errors in controller logs"
           echo "::endgroup::"
 
       - name: Validate Manifests (minikube)

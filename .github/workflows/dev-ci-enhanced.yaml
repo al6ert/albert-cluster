@@ -44,6 +44,9 @@ jobs:
           memory: 8192mb
           profile: minikube-${{ github.sha }}
 
+      - name: Start Minikube Tunnel
+        run: minikube tunnel &
+
       - name: Configure Minikube
         run: |
           minikube profile minikube-${{ github.sha }}

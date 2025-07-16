@@ -71,16 +71,25 @@ jobs:
           kubectl apply -k .  # Aplica namespaces, rbac, secrets, middlewares, argocd apps
           echo "::endgroup::"
           
+          echo "::group::Phase 3.5: Install SealedSecrets Controller"
+          cd ../apps/sealed-secrets
+          helmfile --environment minikube apply --suppress-secrets
+          kubectl wait deployment/sealed-secrets -n kube-system --for=condition=Available --timeout=300s || {
+            echo "⚠️ SealedSecrets controller not ready, checking logs..."
+            kubectl logs -n kube-system -l name=sealed-secrets-controller
+          }
+          cd ../../bootstrap
+          echo "::endgroup::"
+          
           echo "::group::Phase 4: Wait for SealedSecrets Unsealing"
-          # Tu código original para wait sealedsecrets...
-          for ss in $(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null || echo ""); do
+          while read -r ss; do
             if [ -n "$ss" ]; then
-              ns=$(echo $ss | cut -d' ' -f1)
-              name=$(echo $ss | cut -d' ' -f2)
+              ns=$(echo "$ss" | cut -d' ' -f1)
+              name=$(echo "$ss" | cut -d' ' -f2)
               echo "  - Unsealing $name in namespace $ns..."
               kubectl wait sealedsecret/$name -n $ns --for=condition=Sealed=true --timeout=120s || echo "    ⚠️ Unsealing of $name failed"
             fi
-          done
+          done < <(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null)
           echo "::endgroup::"
           
           echo "::group::Phase 5: Final Verification"

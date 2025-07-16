@@ -163,8 +163,10 @@ test_tls_certificates() {
 # Test 8 – SealedSecrets
 test_sealed_secrets() {
   echo "🔓 Test 8: Verifying SealedSecrets functionality..."
-  if kubectl get pods -n kube-system -l name=sealed-secrets-controller \
-        --no-headers 2>/dev/null | grep -q Running; then
+
+  # La etiqueta correcta es app.kubernetes.io/name=sealed-secrets
+  if kubectl get pods -n kube-system -l app.kubernetes.io/name=sealed-secrets \
+         --no-headers 2>/dev/null | grep -q Running; then
     log_debug "SealedSecrets controller is running"
     local count
     count=$(kubectl get sealedsecrets -A --no-headers 2>/dev/null | wc -l)

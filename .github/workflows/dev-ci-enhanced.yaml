@@ -45,7 +45,7 @@ jobs:
           profile: minikube-${{ github.sha }}
 
       - name: Start Minikube Tunnel
-        run: minikube tunnel &
+        run: sudo -E minikube tunnel --cleanup=false >/dev/null 2>&1 &
 
       - name: Configure Minikube
         run: |

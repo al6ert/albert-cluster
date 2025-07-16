@@ -97,8 +97,8 @@ jobs:
       - name: Deploy applications to Minikube
         run: |
           cd infra/apps
-          helmfile --environment minikube apply --suppress-secrets --timeout 900s
-          kubectl wait deployment -n cert-manager --all --for=condition=Available --timeout=300s || true
+          helmfile --environment minikube apply --suppress-secrets 
+          kubectl wait deployment -n cert-manager --all --for=condition=Available || true
 
       - name: Debug Traefik if deployment fails
         if: failure()
@@ -110,7 +110,7 @@ jobs:
 
       - name: Wait for all pods to be ready
         run: |
-          kubectl wait pod --all -A --for=condition=Ready --timeout=300s
+          kubectl wait pod --all -A --for=condition=Ready 
 
       - name: Check for crashloops
         run: |

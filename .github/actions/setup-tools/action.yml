@@ -59,4 +59,4 @@ runs:
           -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq 
     
     - name: Install kubeseal
-        uses: digitalservicebund/setup-kubeseal@LATEST_HASH
+      uses: digitalservicebund/setup-kubeseal@LATEST_HASH

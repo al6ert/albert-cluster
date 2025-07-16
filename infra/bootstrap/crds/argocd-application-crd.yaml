@@ -41,6 +41,37 @@ spec:
                     type: string
                   targetRevision:
                     type: string
+                  plugin:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      env:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                      parameters:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            string:
+                              type: string
+                            array:
+                              type: array
+                              items:
+                                type: string
+                            map:
+                              type: object
+                              additionalProperties:
+                                type: string                  
               destination:
                 type: object
                 properties:

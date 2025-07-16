@@ -50,26 +50,39 @@ jobs:
           minikube addons disable ingress
           minikube addons disable storage-provisioner     
 
-      - name: Bootstrap cluster (Enhanced phased approach with Kustomize)
+      - name: Bootstrap cluster (Kustomize-based)
         run: |
           cd infra/bootstrap
           set -euo pipefail
           
-          echo "::group::Phase 1: Apply Namespaces, CRDs, and RBAC with Kustomize"
-          # Aplicar CRDs primero (con validate=false)
+          echo "::group::Phase 1: Apply CRDs with Kustomize"
           kubectl apply -k crds/ --validate=false
-          # Esperar establishment (necesario para CRs como SealedSecrets)
+          echo "::endgroup::"
+          
+          echo "::group::Phase 2: Wait for CRDs Established"
           kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | \
             xargs kubectl wait --for=condition=Established --timeout=180s
-          # Aplicar el resto del base (namespaces, rbac, secrets, middlewares, argocd apps)
-          kubectl apply -k .  # Esto aplica todo el kustomization.yaml
           echo "::endgroup::"
           
-          echo "::group::Phase 2: Wait for SealedSecrets Unsealing"
-          # Tu código de wait for sealedsecrets...
+          echo "::group::Phase 3: Apply Full Bootstrap with Kustomize"
+          kubectl apply -k .  # Aplica namespaces, rbac, secrets, middlewares, argocd apps
           echo "::endgroup::"
           
-          # Resto de phases si necesitas (e.g., verification)
+          echo "::group::Phase 4: Wait for SealedSecrets Unsealing"
+          # Tu código original para wait sealedsecrets...
+          for ss in $(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null || echo ""); do
+            if [ -n "$ss" ]; then
+              ns=$(echo $ss | cut -d' ' -f1)
+              name=$(echo $ss | cut -d' ' -f2)
+              echo "  - Unsealing $name in namespace $ns..."
+              kubectl wait sealedsecret/$name -n $ns --for=condition=Sealed=true --timeout=120s || echo "    ⚠️ Unsealing of $name failed"
+            fi
+          done
+          echo "::endgroup::"
+          
+          echo "::group::Phase 5: Final Verification"
+          # Tu código de verification...
+          echo "::endgroup::"
 
       - name: Validate Manifests (minikube)
         uses: ./.github/actions/validate-manifests

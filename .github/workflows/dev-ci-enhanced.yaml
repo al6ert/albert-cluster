@@ -99,7 +99,8 @@ jobs:
               ns=$(echo "$ss" | cut -d' ' -f1)
               name=$(echo "$ss" | cut -d' ' -f2)
               echo "  - Unsealing $name in namespace $ns..."
-              kubectl wait sealedsecret/$name -n $ns --for=condition=Sealed=true --timeout=120s || echo "    ⚠️ Unsealing of $name failed"
+              kubectl wait sealedsecret/$name -n $ns --for=condition=Synced --timeout=180s              
+              echo "✅ $name unsealed"
             fi
           done < <(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null)
           echo "::endgroup::"

@@ -40,8 +40,8 @@ jobs:
         with:
           driver: docker
           kubernetes-version: v1.30.2
-          cpus: 4
-          memory: 8192mb
+          cpus: 6
+          memory: 12288mb
           profile: minikube-${{ github.sha }}
       
       - name: Configure Minikube
@@ -91,6 +91,21 @@ jobs:
           sudo apt-get update && sudo apt-get install -y apache2-utils
           ../../scripts/generate-credentials.sh --namespace admin --users admin --secret-name admin-basic-auth
           kubectl apply -f secrets/admin-basic-auth-sealed.yaml
+          
+          echo "::group::Generate Cloudflare dummy secret"
+          cat <<EOF | kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system --format yaml > secrets/cloudflare-api-token-sealed.yaml
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: cloudflare-api-token
+            namespace: cert-manager
+          type: Opaque
+          stringData:
+            api-token: dummy-token-for-ci
+          EOF
+          kubectl apply -f secrets/cloudflare-api-token-sealed.yaml
+          echo "::endgroup::"
+          
           echo "::endgroup::"
           
           echo "::group::Phase 4: Wait for SealedSecrets Unsealing"
@@ -108,6 +123,7 @@ jobs:
           echo "::group::Phase 5: Final Verification"
           echo "Checking unsealed Secrets:"
           kubectl get secret admin-basic-auth -n admin || echo "⚠️ admin-basic-auth Secret not found"
+          kubectl get secret cloudflare-api-token -n cert-manager || echo "⚠️ cloudflare-api-token Secret not found"
           kubectl logs -n kube-system -l name=sealed-secrets-controller | grep -i error || echo "No errors in controller logs"
           echo "::endgroup::"
 

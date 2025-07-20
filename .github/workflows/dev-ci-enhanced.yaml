@@ -40,7 +40,7 @@ jobs:
         with:
           driver: docker
           kubernetes-version: v1.30.2
-          cpus: 6
+          cpus: 4
           memory: 12288mb
           profile: minikube-${{ github.sha }}
       

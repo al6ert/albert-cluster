@@ -94,6 +94,9 @@ jobs:
           echo "::endgroup::"
           
           echo "::group::Phase 5: Create ClusterIssuer for local-ca-issuer"
+          echo "Checking existing ClusterIssuer"
+          kubectl get clusterissuer local-ca-issuer -o yaml || true
+          kubectl delete clusterissuer local-ca-issuer --ignore-not-found=true
           cat <<EOF | kubectl apply -f -
           apiVersion: cert-manager.io/v1
           kind: ClusterIssuer
@@ -113,7 +116,7 @@ jobs:
           echo "::endgroup::"
           
           echo "::group::Phase 6: Install SealedSecrets Controller"
-          cd ../apps/sealed-secrets
+          cd ../sealed-secrets
           helmfile --environment minikube apply --suppress-secrets
           kubectl wait deployment/sealed-secrets -n kube-system --for=condition=Available --timeout=300s || {
             echo "⚠️ SealedSecrets controller not ready"

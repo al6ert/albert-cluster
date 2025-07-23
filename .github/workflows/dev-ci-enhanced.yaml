@@ -50,11 +50,18 @@ jobs:
           minikube addons disable ingress
           minikube addons disable storage-provisioner
 
-      - name: Start Minikube Tunnel
+      # Eliminamos el túnel de Minikube, ya que usaremos NodePort para Traefik
+      # - name: Start Minikube Tunnel
+      #   run: |
+      #     sudo -E nohup minikube -p minikube-${{ github.sha }} tunnel --cleanup=false \
+      #       >"$HOME/minikube_tunnel.log" 2>&1 &
+      #     echo $! >"$HOME/minikube_tunnel.pid"
+
+      - name: Install kubeconform
         run: |
-          sudo -E nohup minikube -p minikube-${{ github.sha }} tunnel --cleanup=false \
-            >"$HOME/minikube_tunnel.log" 2>&1 &
-          echo $! >"$HOME/minikube_tunnel.pid"               
+          curl -Lo kubeconform https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64
+          chmod +x kubeconform
+          sudo mv kubeconform /usr/local/bin/
 
       - name: Bootstrap cluster (Kustomize-based)
         run: |
@@ -82,12 +89,29 @@ jobs:
           helmfile --environment minikube apply --suppress-secrets
           kubectl wait deployment/sealed-secrets -n kube-system --for=condition=Available --timeout=300s || {
             echo "⚠️ SealedSecrets controller not ready, checking logs..."
-            kubectl logs -n kube-system -l name=sealed-secrets-controller
+            kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets
+            exit 1
           }
           cd ../../bootstrap
           echo "::endgroup::"
           
-          echo "::group::Phase 3.6: Generate and Apply Sealed Secrets (Dynamic for CI)"
+          echo "::group::Phase 3.6: Create ClusterIssuer for local-ca-issuer"
+          cat <<EOF | kubectl apply -f -
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: local-ca-issuer
+          spec:
+            selfSigned: {}
+          EOF
+          kubectl wait clusterissuer/local-ca-issuer --for=condition=Ready --timeout=120s || {
+            echo "⚠️ ClusterIssuer local-ca-issuer not ready"
+            kubectl describe clusterissuer local-ca-issuer
+            exit 1
+          }
+          echo "::endgroup::"
+          
+          echo "::group::Phase 3.7: Generate and Apply Sealed Secrets (Dynamic for CI)"
           sudo apt-get update && sudo apt-get install -y apache2-utils
           ../../scripts/generate-credentials.sh --namespace admin --users admin --secret-name admin-basic-auth
           kubectl apply -f secrets/admin-basic-auth-sealed.yaml
@@ -106,31 +130,55 @@ jobs:
           kubectl apply -f secrets/cloudflare-api-token-sealed.yaml
           echo "::endgroup::"
           
-          echo "::endgroup::"
-          
-          echo "::group::Phase 4: Wait for SealedSecrets Unsealing"
+          echo "::group::Phase 3.8: Wait for SealedSecrets Unsealing"
           while read -r ss; do
             if [ -n "$ss" ]; then
               ns=$(echo "$ss" | cut -d' ' -f1)
               name=$(echo "$ss" | cut -d' ' -f2)
               echo "  - Unsealing $name in namespace $ns..."
-              kubectl wait sealedsecret/$name -n $ns --for=condition=Synced --timeout=180s              
+              kubectl wait sealedsecret/$name -n $ns --for=condition=Synced --timeout=180s || {
+                echo "⚠️ Failed to unseal $name in $ns"
+                kubectl describe sealedsecret/$name -n $ns
+                exit 1
+              }
               echo "✅ $name unsealed"
             fi
           done < <(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+          
+          echo "Checking unsealed Secrets:"
+          kubectl get secret admin-basic-auth -n admin || {
+            echo "⚠️ admin-basic-auth Secret not found"
+            kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets
+            exit 1
+          }
+          kubectl get secret cloudflare-api-token -n cert-manager || {
+            echo "⚠️ cloudflare-api-token Secret not found"
+            kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets
+            exit 1
+          }
           echo "::endgroup::"
           
-          echo "::group::Phase 5: Final Verification"
-          echo "Checking unsealed Secrets:"
-          kubectl get secret admin-basic-auth -n admin || echo "⚠️ admin-basic-auth Secret not found"
-          kubectl get secret cloudflare-api-token -n cert-manager || echo "⚠️ cloudflare-api-token Secret not found"
-          kubectl logs -n kube-system -l name=sealed-secrets-controller | grep -i error || echo "No errors in controller logs"
+          echo "::group::Phase 3.9: Verify Certificate Availability"
+          kubectl wait certificate/wildcard-minikube -n traefik --for=condition=Ready --timeout=180s || {
+            echo "⚠️ Certificate wildcard-minikube not ready"
+            kubectl describe certificate wildcard-minikube -n traefik
+            exit 1
+          }
+          kubectl get secret -n traefik wildcard-minikube-tls || {
+            echo "⚠️ Secret wildcard-minikube-tls not found"
+            kubectl describe certificate wildcard-minikube -n traefik
+            exit 1
+          }
+          echo "✅ Certificate wildcard-minikube-tls ready"
           echo "::endgroup::"
 
       - name: Validate Manifests (minikube)
         uses: ./.github/actions/validate-manifests
         with:
-          environment: minikube    
+          environment: minikube
+          working-directory: infra/apps
+        env:
+          KUBECONFORM_ARGS: -schema-location default -schema-location 'https://raw.githubusercontent.com/traefik/traefik/v3.4.3/traefik.crds.yaml'
 
       - name: Pre-pull container images
         run: |
@@ -140,22 +188,38 @@ jobs:
       - name: Deploy applications to Minikube
         run: |
           cd infra/apps
-          helmfile --environment minikube apply --suppress-secrets 
-          kubectl wait deployment -n cert-manager --all --for=condition=Available || true
+          helmfile --environment minikube apply --suppress-secrets
+          kubectl wait deployment -n cert-manager --all --for=condition=Available --timeout=300s || {
+            echo "⚠️ Cert-manager deployments not ready"
+            kubectl get deployments -n cert-manager
+            exit 1
+          }
+          kubectl wait deployment -n traefik --all --for=condition=Available --timeout=300s || {
+            echo "⚠️ Traefik deployments not ready"
+            kubectl get deployments -n traefik
+            kubectl describe deployment -n traefik traefik
+            kubectl logs -n traefik -l app.kubernetes.io/name=traefik --tail=200 || echo "No logs available"
+            kubectl get events -n traefik
+            exit 1
+          }
 
       - name: Debug Traefik if deployment fails
         if: failure()
         run: |
-          kubectl get pods -n traefik
-          kubectl describe pod -n traefik -l app.kubernetes.io/name=traefik
-          kubectl logs -n traefik -l app.kubernetes.io/name=traefik || echo "No current logs"
-          kubectl logs -n traefik -l app.kubernetes.io/name=traefik --previous || echo "No previous logs"
+          kubectl get all -n traefik
+          kubectl describe deployment -n traefik traefik
+          kubectl logs -n traefik -l app.kubernetes.io/name=traefik --tail=200 || echo "No logs available"
+          kubectl get events -n traefik
+          kubectl describe certificate -n traefik wildcard-minikube
+          kubectl logs -n cert-manager -l app.kubernetes.io/name=cert-manager --tail=200 || echo "No cert-manager logs available"
+          kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets --tail=200 || echo "No sealed-secrets logs available"
 
       - name: Wait for all pods to be ready
         run: |
           kubectl wait pod --all -A --for=condition=Ready --timeout=600s || {
             echo "⚠️ Timeout reached, checking pod status..."
             kubectl get pods -A -o wide
+            exit 1
           }
 
       - name: Check for crashloops
@@ -176,7 +240,4 @@ jobs:
       - name: Cleanup Minikube
         if: always()
         run: |
-          if [ -f "$HOME/minikube_tunnel.pid" ]; then
-            sudo kill "$(cat $HOME/minikube_tunnel.pid)" 2>/dev/null || true
-          fi
           minikube delete -p minikube-${{ github.sha }}

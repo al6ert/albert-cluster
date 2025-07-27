@@ -43,6 +43,10 @@ jobs:
           cpus: 4
           memory: 12288mb
           profile: minikube-${{ github.sha }}
+
+      - name: Start Minikube tunnel (GitHub Actions)
+        run: |
+          sudo -E minikube tunnel --cleanup=false --profile "minikube-${{ github.sha }}" >/dev/null 2>&1 &
       
       - name: Configure Minikube
         run: |

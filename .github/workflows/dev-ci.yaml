@@ -24,6 +24,16 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Comprobar si sudo está disponible
+        run: |
+          # sudo -n true → devuelve 0 si el usuario puede usar sudo sin interactuar
+          if sudo -n true 2>/dev/null; then
+            echo "✅ sudo disponible sin contraseña"
+          else
+            echo "::error::sudo NO disponible o requiere password"
+            exit 1
+          fi
+
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
         with:

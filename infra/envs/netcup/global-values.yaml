@@ -6,6 +6,9 @@ environment:
   name: netcup
   type: production
 
+domain: albertperez.dev
+tls: wildcard-netcup-tls
+
 # Configuración de red
 network:
   domain: "albertperez.dev"
@@ -23,4 +26,4 @@ resources:
 
 certmanager:
   env: prod
-  email: admin@albertperez.dev    
+  email: admin@albertperez.dev

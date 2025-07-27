@@ -1,0 +1,22 @@
+crds:
+  enabled: false
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hostname: argo.{{ .Values.domain }}
+    path: /
+    pathType: Prefix
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      cert-manager.io/cluster-issuer: letsencrypt-prod  # Cambia a tu issuer de Cert-Manager
+    tls: true
+  service:
+    type: ClusterIP
+  extraArgs:
+    - --insecure
+
+dex:
+  enabled: false  # Deshabilita Dex (deprecated, no necesario para tu auth básica)
+

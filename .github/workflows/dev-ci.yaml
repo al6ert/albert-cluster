@@ -1,0 +1,316 @@
+name: Dev CI Enhanced
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: dev-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test-dev:
+    name: Enhanced Development Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Tools
+        uses: ./.github/actions/setup-tools
+        with:
+          cache-key: ${{ runner.os }}-helm-dev-${{ github.sha }}
+
+      - name: Cache Minikube
+        uses: actions/cache@v4
+        with:
+          path: ~/.minikube/cache/
+          key: ${{ runner.os }}-minikube-cache-${{ github.sha }}
+
+      - name: Setup Minikube
+        uses: medyagh/setup-minikube@v0.0.15
+        with:
+          driver: docker
+          kubernetes-version: v1.30.2
+          cpus: 4
+          memory: 12288mb
+          profile: minikube-${{ github.sha }}
+
+      - name: Start Minikube tunnel (GitHub Actions)
+        run: |
+          sudo -E minikube tunnel --cleanup=false --profile "minikube-${{ github.sha }}" >/dev/null 2>&1 &
+      
+      - name: Configure Minikube
+        run: |
+          minikube profile minikube-${{ github.sha }}
+          minikube addons disable ingress
+          minikube addons disable storage-provisioner
+
+      - name: Install kubeconform
+        run: |
+          curl -Lo kubeconform https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64
+          chmod +x kubeconform
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Bootstrap cluster (Kustomize-based)
+        run: |
+          cd infra/bootstrap
+          set -euo pipefail
+          
+          echo "::group::Phase 1: Apply CRDs with Kustomize"
+          kubectl apply -k crds/ --validate=false
+          echo "::endgroup::"
+          
+          echo "::group::Phase 2: Wait for CRDs Established"
+          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | \
+            xargs kubectl wait --for=condition=Established --timeout=180s || {
+              echo "⚠️ CRDs not established"
+              kubectl get crd -o wide
+              exit 1
+            }
+          echo "::endgroup::"
+          
+          echo "::group::Phase 3: Apply Namespaces, RBAC, and Middlewares"
+          kubectl apply -k namespaces/
+          kubectl apply -f rbac/gh-actions.yaml
+          kubectl apply -k middlewares/
+          echo "::endgroup::"
+          
+          echo "::group::Phase 4: Install cert-manager"
+          cd ../apps/cert-manager
+          helmfile --environment minikube apply --suppress-secrets
+          kubectl wait deployment -n cert-manager --all --for=condition=Available --timeout=300s || {
+            echo "⚠️ Cert-manager deployments not ready"
+            kubectl get deployments -n cert-manager
+            kubectl describe deployment -n cert-manager -l app.kubernetes.io/name=cert-manager
+            kubectl logs -n cert-manager -l app.kubernetes.io/name=cert-manager --tail=200 || echo "No cert-manager logs available"
+            kubectl get events -n cert-manager
+            exit 1
+          }
+          echo "::endgroup::"
+          
+          echo "::group::Phase 5: Create Self-Signed CA for local-ca-issuer"
+          # Create selfsigned ClusterIssuer
+          kubectl delete clusterissuer selfsigned-issuer --ignore-not-found=true
+          cat <<EOF | kubectl create -f -
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: selfsigned-issuer
+          spec:
+            selfSigned: {}
+          EOF
+          kubectl wait clusterissuer/selfsigned-issuer --for=condition=Ready --timeout=120s || {
+            echo "⚠️ SelfSigned ClusterIssuer not ready"
+            kubectl describe clusterissuer selfsigned-issuer
+            kubectl logs -n cert-manager -l app.kubernetes.io/name=cert-manager --tail=200 || echo "No cert-manager logs available"
+            kubectl get events -n cert-manager
+            exit 1
+          }
+          
+          # Create root CA Certificate using selfsigned issuer
+          kubectl delete certificate root-ca-cert -n cert-manager --ignore-not-found=true
+          cat <<EOF | kubectl create -f -
+          apiVersion: cert-manager.io/v1
+          kind: Certificate
+          metadata:
+            name: root-ca-cert
+            namespace: cert-manager
+          spec:
+            isCA: true
+            commonName: "Local Root CA"
+            secretName: root-ca-secret
+            privateKey:
+              algorithm: ECDSA
+              size: 256
+            issuerRef:
+              name: selfsigned-issuer
+              kind: ClusterIssuer
+              group: cert-manager.io
+          EOF
+          kubectl wait certificate/root-ca-cert -n cert-manager --for=condition=Ready --timeout=180s || {
+            echo "⚠️ Root CA Certificate not ready"
+            kubectl describe certificate root-ca-cert -n cert-manager
+            kubectl logs -n cert-manager -l app.kubernetes.io/name=cert-manager --tail=200 || echo "No cert-manager logs available"
+            kubectl get events -n cert-manager
+            exit 1
+          }
+          
+          # Create CA ClusterIssuer using the root CA secret
+          kubectl delete clusterissuer local-ca-issuer --ignore-not-found=true
+          cat <<EOF | kubectl create -f -
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: local-ca-issuer
+          spec:
+            ca:
+              secretName: root-ca-secret
+          EOF
+          kubectl wait clusterissuer/local-ca-issuer --for=condition=Ready --timeout=120s || {
+            echo "⚠️ Local CA ClusterIssuer not ready"
+            kubectl describe clusterissuer local-ca-issuer
+            kubectl logs -n cert-manager -l app.kubernetes.io/name=cert-manager --tail=200 || echo "No cert-manager logs available"
+            kubectl get events -n cert-manager
+            exit 1
+          }
+          echo "✅ Local CA ClusterIssuer ready"
+          echo "::endgroup::"
+          
+          echo "::group::Phase 6: Install SealedSecrets Controller"
+          cd ../sealed-secrets
+          helmfile --environment minikube apply --suppress-secrets
+          kubectl wait deployment/sealed-secrets -n kube-system --for=condition=Available --timeout=300s || {
+            echo "⚠️ SealedSecrets controller not ready"
+            kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets --tail=200
+            kubectl get events -n kube-system
+            exit 1
+          }
+          cd ../../bootstrap
+          echo "::endgroup::"
+          
+          echo "::group::Phase 7: Generate and Apply Sealed Secrets (Dynamic for CI)"
+          sudo apt-get update && sudo apt-get install -y apache2-utils
+          ../../scripts/generate-credentials.sh --namespace admin --users admin --secret-name admin-basic-auth
+          kubectl apply -f secrets/admin-basic-auth-sealed.yaml
+          
+          echo "::group::Generate Cloudflare dummy secret"
+          cat <<EOF | kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system --format yaml > secrets/cloudflare-api-token-sealed.yaml
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: cloudflare-api-token
+            namespace: cert-manager
+          type: Opaque
+          stringData:
+            api-token: dummy-token-for-ci
+          EOF
+          kubectl apply -f secrets/cloudflare-api-token-sealed.yaml
+          echo "::endgroup::"
+          
+          echo "::endgroup::"
+          
+          echo "::group::Phase 8: Wait for SealedSecrets Unsealing"
+          while read -r ss; do
+            if [ -n "$ss" ]; then
+              ns=$(echo "$ss" | cut -d' ' -f1)
+              name=$(echo "$ss" | cut -d' ' -f2)
+              echo "  - Unsealing $name in namespace $ns..."
+              kubectl wait sealedsecret/$name -n $ns --for=condition=Synced --timeout=180s || {
+                echo "⚠️ Failed to unseal $name in $ns"
+                kubectl describe sealedsecret/$name -n $ns
+                kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets --tail=200
+                kubectl get events -n kube-system
+                exit 1
+              }
+              echo "✅ $name unsealed"
+            fi
+          done < <(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+          
+          echo "Checking unsealed Secrets:"
+          kubectl get secret admin-basic-auth -n admin || {
+            echo "⚠️ admin-basic-auth Secret not found"
+            kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets --tail=200
+            kubectl get events -n kube-system
+            exit 1
+          }
+          kubectl get secret cloudflare-api-token -n cert-manager || {
+            echo "⚠️ cloudflare-api-token Secret not found"
+            kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets --tail=200
+            kubectl get events -n kube-system
+            exit 1
+          }
+          echo "::endgroup::"
+          
+          echo "::group::Phase 9: Apply ArgoCD Apps"
+          kubectl apply -f argocd-minikube.yaml
+          echo "::endgroup::"
+
+      - name: Validate Manifests (minikube)
+        uses: ./.github/actions/validate-manifests
+        with:
+          environment: minikube
+          working-directory: infra/apps
+        env:
+          KUBECONFORM_ARGS: -schema-location default -schema-location 'https://raw.githubusercontent.com/traefik/traefik/v3.4.3/traefik.crds.yaml'
+
+      - name: Pre-pull container images
+        run: |
+          source versions.env
+          minikube ssh "docker pull traefik:v3.4.3; docker pull quay.io/jetstack/cert-manager-controller:v1.18.2"
+
+      - name: Deploy applications to Minikube
+        run: |
+          cd infra/apps
+          # Desplegar solo Traefik y aplicaciones posteriores, ya que cert-manager y sealed-secrets ya están desplegados
+          helmfile --environment minikube apply --suppress-secrets --selector 'name!=cert-manager,name!=sealed-secrets'
+          kubectl wait deployment -n traefik --all --for=condition=Available --timeout=300s || {
+            echo "⚠️ Traefik deployments not ready"
+            kubectl get deployments -n traefik
+            kubectl describe deployment -n traefik traefik
+            kubectl logs -n traefik -l app.kubernetes.io/name=traefik --tail=200 || echo "No logs available"
+            kubectl get events -n traefik
+            kubectl describe certificate -n traefik wildcard-minikube
+            exit 1
+          }
+          kubectl wait certificate/wildcard-minikube -n traefik --for=condition=Ready --timeout=180s || {
+            echo "⚠️ Certificate wildcard-minikube not ready"
+            kubectl describe certificate wildcard-minikube -n traefik
+            kubectl logs -n cert-manager -l app.kubernetes.io/name=cert-manager --tail=200 || echo "No cert-manager logs available"
+            exit 1
+          }
+          kubectl get secret -n traefik wildcard-minikube-tls || {
+            echo "⚠️ Secret wildcard-minikube-tls not found"
+            kubectl describe certificate wildcard-minikube -n traefik
+            exit 1
+          }
+          echo "✅ Certificate wildcard-minikube-tls ready"
+
+      - name: Debug Traefik if deployment fails
+        if: failure()
+        run: |
+          kubectl get all -n traefik
+          kubectl describe deployment -n traefik traefik
+          kubectl logs -n traefik -l app.kubernetes.io/name=traefik --tail=200 || echo "No logs available"
+          kubectl get events -n traefik
+          kubectl describe certificate -n traefik wildcard-minikube
+          kubectl logs -n cert-manager -l app.kubernetes.io/name=cert-manager --tail=200 || echo "No cert-manager logs available"
+          kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets --tail=200 || echo "No sealed-secrets logs available"
+          kubectl get events -n cert-manager
+          kubectl get events -n kube-system
+
+      - name: Wait for all pods to be ready
+        run: |
+          kubectl wait pod --all -A --for=condition=Ready --timeout=600s || {
+            echo "⚠️ Timeout reached, checking pod status..."
+            kubectl get pods -A -o wide
+            exit 1
+          }
+
+      - name: Check for crashloops
+        run: |
+          CRASHED_PODS=$(kubectl get pods --all-namespaces --field-selector=status.phase!=Running -o jsonpath='{.items[*].metadata.name}')
+          if [ -n "$CRASHED_PODS" ]; then
+            echo "::error::Found pods not in Running state:"
+            kubectl get pods --all-namespaces --field-selector=status.phase!=Running
+            exit 1
+          fi
+          echo "✅ All pods are running"
+
+      - name: Enhanced smoke tests
+        run: |
+          chmod +x tests/smoke.sh
+          ./tests/smoke.sh
+
+      - name: Cleanup Minikube
+        if: always()
+        run: |
+          minikube delete -p minikube-${{ github.sha }}

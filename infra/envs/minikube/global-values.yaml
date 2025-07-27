@@ -6,6 +6,9 @@ environment:
   name: minikube
   type: development
 
+domain: 127.0.0.1.nip.io
+tls: wildcard-minikube-tls
+
 # Configuración de red
 network:
   domain: "127.0.0.1.nip.io"
@@ -18,8 +21,8 @@ resources:
     memory: "512Mi"
   requests:
     cpu: "100m"
-    memory: "128Mi" 
+    memory: "128Mi"
 
 certmanager:
   env: dev
-  email: admin@albertperez.dev    
+  email: admin@albertperez.dev

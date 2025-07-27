@@ -1,0 +1,19 @@
+environments:
+  minikube: {}
+  netcup: {}
+
+---
+repositories:
+  - name: argo
+    url: https://argoproj.github.io/argo-helm
+
+releases:
+  - name: argocd
+    chart: argo/argo-cd
+    version: {{ env "ARGOCD_CHART_VERSION" }}
+    namespace: argocd
+    values:
+      - values.yaml  # Valores locales para Ingress y middleware 
+      - values-helmfile.yaml  # Configuración para Helmfile plugin
+      - ../../envs/{{ .Environment.Name }}/global-values.yaml      
+      

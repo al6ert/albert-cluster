@@ -15,4 +15,4 @@ spec:
       services:
         - name: {{ include "hello.fullname" . }}
           port: {{ .Values.service.port }}
-{{- end }} 
+{{- end }}

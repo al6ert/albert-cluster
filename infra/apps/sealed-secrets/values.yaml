@@ -28,4 +28,4 @@ serviceAccount:
 tolerations: []
 
 # Configuración de affinity
-affinity: {} 
+affinity: {}

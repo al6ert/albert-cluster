@@ -3,9 +3,12 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     "helm.sh/resource-policy": keep
+    meta.helm.sh/release-name: argocd
+    meta.helm.sh/release-namespace: argocd
   labels:
     app.kubernetes.io/name: applications.argoproj.io
     app.kubernetes.io/part-of: argocd
+    app.kubernetes.io/managed-by: Helm
   name: applications.argoproj.io
 spec:
   group: argoproj.io
@@ -38,6 +41,37 @@ spec:
                     type: string
                   targetRevision:
                     type: string
+                  plugin:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      env:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
+                      parameters:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            string:
+                              type: string
+                            array:
+                              type: array
+                              items:
+                                type: string
+                            map:
+                              type: object
+                              additionalProperties:
+                                type: string                  
               destination:
                 type: object
                 properties:
@@ -104,4 +138,4 @@ spec:
     served: true
     storage: true
     subresources:
-      status: {} 
+      status: {}

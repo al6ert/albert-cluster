@@ -20969,7 +20969,7 @@ rules:
   - apiGroups:
       - batch
     resources:
-      
+
       - jobs
     verbs:
       - create
@@ -20978,7 +20978,7 @@ rules:
     resources:
       - workflows
     verbs:
-      
+
       - create
 ---
 # Source: argo-cd/templates/argocd-application-controller/clusterrolebinding.yaml

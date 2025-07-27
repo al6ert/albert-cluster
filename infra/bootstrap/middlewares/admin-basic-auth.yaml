@@ -6,4 +6,4 @@ metadata:
 spec:
   basicAuth:
     secret: admin-basic-auth
-    realm: "Protected Area" 
+    realm: "Protected Area"

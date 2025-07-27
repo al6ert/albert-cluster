@@ -12,7 +12,7 @@ releases:
     namespace: kube-system
     createNamespace: false  # kube-system ya existe
     chart: sealed-secrets/sealed-secrets
-    version: {{ requiredEnv "SEALED_SECRETS_CHART_VERSION" }}
+    version: {{ env "SEALED_SECRETS_CHART_VERSION" }}
     values:
       - values.yaml
     wait: true

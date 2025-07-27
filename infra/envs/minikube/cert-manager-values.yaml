@@ -35,5 +35,3 @@ extraObjects:
     spec:
       ca:
         secretName: local-ca
-
-  

@@ -8,6 +8,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/versions.env"
 
+# Disable default minikube ingress addon if enabled to avoid conflicts with Traefik
+if minikube addons list | grep -q "ingress: enabled"; then
+    echo "Disabling default minikube ingress addon to avoid conflicts..."
+    minikube addons disable ingress
+fi
+
 echo "🚀 Starting idempotent local deployment..."
 echo "📋 Using versions: Helm ${HELM_VERSION}, Helmfile ${HELMFILE_VERSION}"
 
@@ -25,6 +31,13 @@ check_prerequisites() {
     if ! command -v helmfile >/dev/null 2>&1; then
         echo "❌ helmfile not found. Please install helmfile first."
         echo "   Install with: curl -Lo helmfile https://github.com/helmfile/helmfile/releases/download/${HELMFILE_VERSION}/helmfile_linux_amd64"
+        exit 1
+    fi
+
+    # Check if kubeseal is available
+    if ! command -v kubeseal >/dev/null 2>&1; then
+        echo "❌ kubeseal not found. Please install kubeseal first."
+        echo "   Install with: curl -Lo kubeseal https://github.com/bitnami-labs/sealed-secrets/releases/download/v${KUBESEAL_VERSION#v}/kubeseal-darwin-amd64 && chmod +x kubeseal && sudo mv kubeseal /usr/local/bin/"
         exit 1
     fi
     
@@ -52,19 +65,24 @@ wait_for_crds() {
 wait_for_sealed_secrets() {
     echo "🔓 Waiting for SealedSecrets to be unsealed..."
     
-    # Get all SealedSecrets and wait for their corresponding Secrets to be created
-    while IFS= read -r ss_info; do
-        if [ -n "$ss_info" ]; then
-            local ns=$(echo "$ss_info" | cut -d' ' -f1)
-            local name=$(echo "$ss_info" | cut -d' ' -f2)
-            echo "  - Waiting for $name in namespace $ns..."
-            
-            # Wait for SealedSecret to be processed
-            kubectl wait sealedsecret/"$name" -n "$ns" --for=condition=Sealed=true --timeout=60s || {
-                echo "    ⚠️ SealedSecret $name unsealing timed out"
-            }
-        fi
-    done < <(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+    # List of secret_name:namespace pairs without associative array (for Bash 3.x compatibility)
+    local sealed_secrets=(
+        "admin-basic-auth:admin"
+        "cloudflare-api-token:cert-manager"
+    )
+    
+    for item in "${sealed_secrets[@]}"; do
+        local secret_name="${item%:*}"
+        local ns="${item#*:}"
+        echo "  - Waiting for $secret_name in namespace $ns..."
+        
+        # Wait for Secret to exist and have data
+        kubectl wait secret/"$secret_name" -n "$ns" --for=jsonpath='{.data}'=non-empty --timeout=120s || {
+            echo "    ⚠️ Secret $secret_name not unsealed within timeout"
+            # Debug: Check logs
+            kubectl logs -n kube-system -l name=sealed-secrets-controller | grep "$secret_name" || echo "No logs found for $secret_name"
+        }
+    done
     
     echo "✅ SealedSecrets processing completed"
 }
@@ -81,9 +99,47 @@ apply_bootstrap() {
     
     wait_for_crds
     
-    echo "::group::Phase 2: Secrets and Middlewares"
-    kubectl apply -k secrets/
+    echo "::group::Phase 2: Middlewares (before secrets)"
     kubectl apply -k middlewares/
+    echo "::endgroup::"
+    
+    echo "::group::Phase 2.5: SealedSecrets Controller"
+    echo "Installing SealedSecrets controller before secrets..."
+    cd "${SCRIPT_DIR}/infra/apps/sealed-secrets"
+    
+    # Export versions for Helmfile templates
+    export SEALED_SECRETS_CHART_VERSION
+    helmfile --environment minikube apply --suppress-secrets
+    
+    echo "⏳ Waiting for SealedSecrets controller to be ready..."
+    kubectl wait deployment sealed-secrets -n kube-system --for=condition=Available --timeout=300s
+    
+    cd "${SCRIPT_DIR}/infra/bootstrap"
+    echo "::endgroup::"
+    
+    echo "::group::Phase 2.6: Generate and apply fresh SealedSecrets"
+    # Generate admin-basic-auth using the script (defaults: namespace=admin, users=admin)
+    bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --namespace admin --users admin --secret-name admin-basic-auth
+    # Apply the freshly generated sealed secret
+    kubectl apply -f "${SCRIPT_DIR}/infra/bootstrap/secrets/admin-basic-auth-sealed.yaml"
+    
+    # Generate cloudflare-api-token with dummy for local
+    echo "Generating dummy Cloudflare API token secret for local..."
+    TMP_SECRET_YAML=$(mktemp)
+    cat > "$TMP_SECRET_YAML" << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-api-token
+  namespace: cert-manager
+type: Opaque
+stringData:
+  api-token: dummy-cloudflare-token
+EOF
+    TMP_SEALED_YAML=$(mktemp)
+    kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system --format yaml < "$TMP_SECRET_YAML" > "$TMP_SEALED_YAML"
+    kubectl apply -f "$TMP_SEALED_YAML"
+    rm -f "$TMP_SECRET_YAML" "$TMP_SEALED_YAML"
     echo "::endgroup::"
     
     wait_for_sealed_secrets
@@ -109,9 +165,10 @@ deploy_applications() {
     export CERT_MANAGER_CHART_VERSION  
     export SEALED_SECRETS_CHART_VERSION
     export HELLO_CHART_VERSION
+    export ARGOCD_CHART_VERSION
     
-    # Apply applications idempotently
-    helmfile --environment minikube apply --suppress-secrets
+    # Apply applications idempotently (excluding SealedSecrets as it's already installed in bootstrap)
+    helmfile --environment minikube apply --suppress-secrets --selector 'name!=sealed-secrets'
     
     echo "⏳ Waiting for all deployments to be ready..."
     kubectl wait deployment --all -A --for=condition=Available --timeout=300s || {
@@ -128,13 +185,31 @@ show_status() {
     echo "  Pods Running: $(kubectl get pods -A --field-selector=status.phase=Running | wc -l)"
     echo "  CRDs: $(kubectl get crd | grep -E '(cert-manager|traefik|bitnami|argoproj)' | wc -l)"
     echo "  SealedSecrets: $(kubectl get sealedsecrets -A --no-headers 2>/dev/null | wc -l)"
-    
     echo ""
-    echo "🌐 Access URLs:"
-    echo "  Traefik Dashboard: https://traefik.127.0.0.1.nip.io/dashboard/"
-    echo "  Hello App: http://hello.127.0.0.1.nip.io"
+    echo "🌐 Access URLs (Ingress):"
+    kubectl get ingress --all-namespaces -o json | jq -r '
+      .items[] | . as $ingress | 
+      .spec.rules[]? | 
+      "  - " + .host + (.http.paths[]? | "\(.path) => namespace: \($ingress.metadata.namespace), svc: \($ingress.spec.rules[0].http.paths[0].backend.service.name)")'
     echo ""
-    echo "🔐 Default credentials: admin / admin"
+    # Mostrar credenciales generadas si existen
+    PASSWORDS_FILE="/tmp/admin-basic-auth-passwords.txt"
+    if [ -f "$PASSWORDS_FILE" ]; then
+        echo "🔑 Basic Auth credentials (from $PASSWORDS_FILE):"
+        cat "$PASSWORDS_FILE"
+        echo ""
+    else
+        echo "⚠️  No se encontró el archivo de contraseñas generadas ($PASSWORDS_FILE). Si necesitas las credenciales, revisa la salida de generate-credentials.sh."
+        echo ""
+    fi
+    # Mostrar password real de ArgoCD
+    ARGOCD_PWD=$(kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' 2>/dev/null | base64 --decode || kubectl get secret argocd-secret -n argocd -o jsonpath='{.data.admin\\.password}' 2>/dev/null | base64 --decode)
+    if [ -n "$ARGOCD_PWD" ]; then
+        echo "🔑 ArgoCD admin password: $ARGOCD_PWD"
+        echo "  Login: https://argo.127.0.0.1.nip.io (user: admin)"
+    else
+        echo "⚠️  No se pudo obtener el password de ArgoCD admin."
+    fi
     echo ""
     echo "💡 To check pod status: kubectl get pods -A"
     echo "💡 To check application logs: kubectl logs -n traefik -l app.kubernetes.io/name=traefik"

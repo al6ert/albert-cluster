@@ -49,4 +49,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "hello.selectorLabels" . | nindent 4 }} 
+    {{- include "hello.selectorLabels" . | nindent 4 }}

@@ -22,4 +22,4 @@ spec:
   tls:
     secretName: {{ .Values.traefik.ingressRoute.tlsSecret }}
   {{- end }}
-{{- end }} 
+{{- end }}

@@ -3,9 +3,11 @@
 
 environments:
   minikube:
+    kubeContext: minikube
     values:
       - ../envs/minikube/global-values.yaml
   netcup:
+    kubeContext: netcup
     values:
       - ../envs/netcup/global-values.yaml
 

@@ -1,0 +1,10 @@
+server:
+  ingress:
+    enabled: true
+    hostname: argo.albertperez.dev
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    backend:
+      service:
+        port:
+          number: 80

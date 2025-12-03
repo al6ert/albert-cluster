@@ -10,7 +10,7 @@ server:
     pathType: Prefix
     annotations:
       traefik.ingress.kubernetes.io/router.entrypoints: websecure
-      cert-manager.io/cluster-issuer: letsencrypt-prod  # Cambia a tu issuer de Cert-Manager
+      cert-manager.io/cluster-issuer: letsencrypt-prod
     tls: true
   service:
     type: ClusterIP
@@ -19,4 +19,3 @@ server:
 
 dex:
   enabled: false  # Deshabilita Dex (deprecated, no necesario para tu auth básica)
-

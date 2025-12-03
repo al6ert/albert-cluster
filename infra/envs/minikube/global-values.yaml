@@ -26,3 +26,8 @@ resources:
 certmanager:
   env: dev
   email: admin@albertperez.dev
+
+server:
+  ingress:
+    annotations:
+      cert-manager.io/cluster-issuer: local-ca-issuer

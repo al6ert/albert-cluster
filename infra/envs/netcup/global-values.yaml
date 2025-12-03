@@ -27,3 +27,8 @@ resources:
 certmanager:
   env: prod
   email: admin@albertperez.dev
+
+server:
+  ingress:
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod

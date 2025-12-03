@@ -1,0 +1,10 @@
+server:
+  ingress:
+    enabled: true
+    hostname: argo.127.0.0.1.nip.io
+    annotations:
+      cert-manager.io/cluster-issuer: local-ca-issuer
+    backend:
+      service:
+        port:
+          number: 80

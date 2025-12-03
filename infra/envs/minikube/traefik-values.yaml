@@ -20,6 +20,7 @@ extraObjects:
     kind: Certificate
     metadata:
       name: wildcard-minikube
+      namespace: traefik
     spec:
       secretName: wildcard-minikube-tls
       dnsNames:

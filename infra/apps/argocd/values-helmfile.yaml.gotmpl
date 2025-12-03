@@ -1,25 +1,26 @@
 configs:
-  cm:
-    configManagementPlugins: |
-      - name: helmfile
-        generate:
-          command: ["helmfile", "template"]
-        discover:
-          fileName: "helmfile.yaml"
   params: 
     create: false # Define estructura vacía para evitar nil pointer en templates    
     server.insecure: true 
     application.namespaces: "*" # Permite gestionar aplicaciones en todos los namespaces         
 
 repoServer:
+  volumeMounts:
+    - name: helmfile-plugin-cm
+      mountPath: /home/argocd/cmp-server/config/plugin.yaml
+      subPath: plugin.yaml
+    - name: var-files
+      mountPath: /var/run/argocd
   extraContainers:
     - name: helmfile
-      image: ghcr.io/helmfile/helmfile:v0.157.0
+      image: ghcr.io/helmfile/helmfile:v1.1.2
       command: ["/var/run/argocd/argocd-cmp-server"]
       securityContext:
         runAsNonRoot: true
         runAsUser: 999
       env:
+        - name: HELMFILE_ENVIRONMENT
+          value: {{ .Environment.Name }}
         - name: HELM_CACHE_HOME
           value: /tmp/helm-cache
         - name: HELM_CONFIG_HOME
@@ -56,11 +57,10 @@ extraObjects:
         metadata:
           name: helmfile
         spec:
-          version: v1.0
           init:
             command: ["helmfile", "deps"]
           generate:
-            command: [sh, -c]
-            args: ["helmfile --environment $HELMFILE_ENVIRONMENT template --quiet --namespace $ARGOCD_APP_NAMESPACE"]
+            command: ["sh", "-c"]
+            args: ["helmfile --environment $HELMFILE_ENVIRONMENT repos >/dev/null 2>&1 && rm -rf /tmp/helmfile-output && mkdir -p /tmp/helmfile-output && helmfile --environment $HELMFILE_ENVIRONMENT template --skip-deps --output-dir /tmp/helmfile-output >/dev/null 2>&1 && find /tmp/helmfile-output -type f -name '*.yaml' -print0 | xargs -0 cat"]
           discover:
-            fileName: "helmfile.yaml"
+            command: ["true"]

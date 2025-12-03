@@ -9,7 +9,6 @@ spec:
   project: default
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
   source:
     repoURL: https://github.com/al6ert/albert-cluster.git
     targetRevision: dev

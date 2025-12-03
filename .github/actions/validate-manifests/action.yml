@@ -8,7 +8,12 @@ inputs:
   working-directory:
     description: 'Working directory for helmfile operations'
     required: false
+    required: false
     default: 'infra/apps'
+  skip-diff:
+    description: 'Skip helmfile diff (useful when no cluster is available)'
+    required: false
+    default: 'false'
 
 runs:
   using: "composite"
@@ -57,6 +62,7 @@ runs:
         echo "::endgroup::"
 
     - name: Helmfile diff (check for destructive changes)
+      if: inputs.skip-diff != 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |

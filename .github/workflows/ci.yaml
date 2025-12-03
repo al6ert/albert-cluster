@@ -32,11 +32,13 @@ jobs:
         uses: ./.github/actions/validate-manifests
         with:
           environment: minikube
+          skip-diff: true
 
       - name: Validate Manifests (netcup)  
         uses: ./.github/actions/validate-manifests
         with:
           environment: netcup
+          skip-diff: true
 
       - name: Compare namespace consistency
         run: |

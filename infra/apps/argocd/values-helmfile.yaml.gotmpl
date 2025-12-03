@@ -61,6 +61,6 @@ extraObjects:
             command: ["helmfile", "deps"]
           generate:
             command: ["sh", "-c"]
-            args: ["helmfile --environment $HELMFILE_ENVIRONMENT repos >/dev/null 2>&1 && rm -rf /tmp/helmfile-output && mkdir -p /tmp/helmfile-output && (helmfile --environment $HELMFILE_ENVIRONMENT template --skip-deps --output-dir /tmp/helmfile-output >/dev/null 2>/tmp/error.log || { cat /tmp/error.log >&2; exit 1; }) && find /tmp/helmfile-output -type f -name '*.yaml' -print0 | xargs -0 cat"]
+            args: ["helmfile --environment $HELMFILE_ENVIRONMENT repos >/dev/null 2>&1 && rm -rf /tmp/helmfile-output && mkdir -p /tmp/helmfile-output && helmfile --environment $HELMFILE_ENVIRONMENT template --skip-deps --output-dir /tmp/helmfile-output >/dev/null 2>&1 && find /tmp/helmfile-output -type f -name '*.yaml' -print0 | xargs -0 cat"]
           discover:
             command: ["true"]

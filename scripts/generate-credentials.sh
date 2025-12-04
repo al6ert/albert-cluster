@@ -71,12 +71,12 @@ check_prerequisites() {
         echo "❌ openssl not found. Please install openssl."
         exit 1
     fi
-    
+
     if ! command -v htpasswd >/dev/null 2>&1; then
         echo "❌ htpasswd not found. Please install apache2-utils."
         exit 1
     fi
-    
+
     if ! command -v kubeseal >/dev/null 2>&1; then
         echo "❌ kubeseal not found. Install it with:"
         echo "   curl -Lo kubeseal https://github.com/bitnami-labs/sealed-secrets/releases/download/v${KUBESEAL_VERSION#v}/kubeseal-linux-amd64"
@@ -95,16 +95,16 @@ setup_temp_dir() {
 # Generate passwords and htpasswd file
 generate_credentials() {
     echo "📝 Generating secure passwords..."
-    
+
     # Create htpasswd file
     local htpasswd_file="$TMP_DIR/users.htpasswd"
     rm -f "$htpasswd_file"
-    
+
     # Parse users and generate passwords
     IFS=',' read -ra USER_ARRAY <<< "$USERS"
     PASSWORDS_FILE="$TMP_DIR/passwords.txt"
     > "$PASSWORDS_FILE"
-    
+
     for user in "${USER_ARRAY[@]}"; do
         user=$(echo "$user" | xargs)  # trim whitespace
         # Si hay password fijo en env, úsalo
@@ -128,7 +128,7 @@ generate_credentials() {
     done
     # Copiar el archivo de passwords a /tmp para que deploy-local.sh lo muestre
     cp "$PASSWORDS_FILE" /tmp/admin-basic-auth-passwords.txt
-    
+
     echo "✅ Credentials generated"
     return 0
 }
@@ -136,9 +136,9 @@ generate_credentials() {
 # Create Kubernetes Secret
 create_k8s_secret() {
     echo "📦 Creating Kubernetes Secret..."
-    
+
     local secret_file="$TMP_DIR/${SECRET_NAME}-secret.yaml"
-    
+
     cat > "$secret_file" << EOF
 apiVersion: v1
 kind: Secret
@@ -153,23 +153,23 @@ stringData:
   users: |
 $(sed 's/^/    /' "$TMP_DIR/users.htpasswd")
 EOF
-    
+
     echo "✅ Secret created at $secret_file"
 }
 
 # Seal the secret
 seal_secret() {
     echo "🔒 Sealing Secret with kubeseal..."
-    
+
     local secret_file="$TMP_DIR/${SECRET_NAME}-secret.yaml"
     local sealed_file="${SCRIPT_DIR}/../infra/bootstrap/secrets/${SECRET_NAME}-sealed.yaml"
-    
+
     # Ensure output directory exists
     mkdir -p "$(dirname "$sealed_file")"
-    
+
     # Seal the secret
     kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system --format yaml < "$secret_file" > "$sealed_file"
-    
+
     echo "✅ SealedSecret created at $sealed_file"
 }
 
@@ -200,7 +200,7 @@ main() {
     create_k8s_secret
     seal_secret
     show_instructions
-    
+
     echo ""
     echo "🎉 Credential generation completed successfully!"
 }
@@ -208,4 +208,4 @@ main() {
 # Allow sourcing this script for testing
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
-fi 
+fi

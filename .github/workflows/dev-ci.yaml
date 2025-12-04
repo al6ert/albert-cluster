@@ -19,7 +19,7 @@ jobs:
   build-test-dev:
     name: Enhanced Development Build and Test
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -59,7 +59,7 @@ jobs:
       - name: Start Minikube Tunnel
         run: |
           sudo -E minikube tunnel --cleanup=false >/dev/null 2>&1 &
-      
+
       - name: Configure Minikube
         run: |
           minikube profile minikube-${{ github.sha }}
@@ -76,11 +76,11 @@ jobs:
         run: |
           cd infra/bootstrap
           set -euo pipefail
-          
+
           echo "::group::Phase 1: Apply CRDs with Kustomize"
           kubectl apply -k crds/ --validate=false
           echo "::endgroup::"
-          
+
           echo "::group::Phase 2: Wait for CRDs Established"
           kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | \
             xargs kubectl wait --for=condition=Established --timeout=180s || {
@@ -89,17 +89,17 @@ jobs:
               exit 1
             }
           echo "::endgroup::"
-          
+
           echo "::group::Phase 3: Apply Namespaces, RBAC, and Middlewares"
           kubectl apply -k namespaces/
           kubectl apply -f rbac/gh-actions.yaml
           kubectl apply -k middlewares/
           echo "::endgroup::"
-          
+
           echo "::group::Phase 4: Install cert-manager"
           cd ../apps/cert-manager
           helmfile --environment minikube apply --suppress-secrets
-          
+
           # Wait for deployments
           kubectl wait deployment -n cert-manager --all --for=condition=Available --timeout=300s || {
             echo "⚠️ Cert-manager deployments not ready"
@@ -117,17 +117,17 @@ jobs:
             kubectl describe certificate local-ca -n cert-manager
             exit 1
           }
-          
+
           echo "Waiting for Local CA ClusterIssuer..."
           kubectl wait clusterissuer/local-ca-issuer --for=condition=Ready --timeout=180s || {
             echo "⚠️ Local CA ClusterIssuer not ready"
             kubectl describe clusterissuer local-ca-issuer
             exit 1
           }
-          
+
           echo "✅ Cert-manager and Local CA ready"
           echo "::endgroup::"
-          
+
           echo "::group::Phase 5: Install SealedSecrets Controller"
           cd ../sealed-secrets
           helmfile --environment minikube apply --suppress-secrets
@@ -139,12 +139,12 @@ jobs:
           }
           cd ../../bootstrap
           echo "::endgroup::"
-          
+
           echo "::group::Phase 7: Generate and Apply Sealed Secrets (Dynamic for CI)"
           sudo apt-get update && sudo apt-get install -y apache2-utils
           ../../scripts/generate-credentials.sh --namespace admin --users admin --secret-name admin-basic-auth
           kubectl apply -f secrets/admin-basic-auth-sealed.yaml
-          
+
           echo "::group::Generate Cloudflare dummy secret"
           cat <<EOF | kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system --format yaml > secrets/cloudflare-api-token-sealed.yaml
           apiVersion: v1
@@ -158,9 +158,9 @@ jobs:
           EOF
           kubectl apply -f secrets/cloudflare-api-token-sealed.yaml
           echo "::endgroup::"
-          
+
           echo "::endgroup::"
-          
+
           echo "::group::Phase 8: Wait for SealedSecrets Unsealing"
           while read -r ss; do
             if [ -n "$ss" ]; then
@@ -177,7 +177,7 @@ jobs:
               echo "✅ $name unsealed"
             fi
           done < <(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null)
-          
+
           echo "Checking unsealed Secrets:"
           kubectl get secret admin-basic-auth -n admin || {
             echo "⚠️ admin-basic-auth Secret not found"
@@ -192,7 +192,7 @@ jobs:
             exit 1
           }
           echo "::endgroup::"
-          
+
           echo "::group::Phase 9: Apply ArgoCD Apps"
           kubectl apply -f argocd-minikube.yaml
           echo "::endgroup::"
@@ -266,7 +266,7 @@ jobs:
         run: |
           # Check for pods with actual error states, ignoring Completed jobs
           CRASHED_PODS=$(kubectl get pods -A | grep -v "Completed" | grep -E "CrashLoopBackOff|ImagePullBackOff|ErrImagePull|Error" || true)
-          
+
           if [ -n "$CRASHED_PODS" ]; then
             echo "::error::Found pods in error state:"
             echo "$CRASHED_PODS"

@@ -20,7 +20,7 @@ jobs:
     name: Validate and Test
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,7 +34,7 @@ jobs:
           environment: minikube
           skip-diff: true
 
-      - name: Validate Manifests (netcup)  
+      - name: Validate Manifests (netcup)
         uses: ./.github/actions/validate-manifests
         with:
           environment: netcup
@@ -83,18 +83,18 @@ jobs:
         run: |
           cd infra/bootstrap
           set -euo pipefail
-          
+
           echo "::group::Phase 1: Namespaces + CRDs + RBAC"
           kubectl apply -k namespaces/
           kubectl apply -k crds/ --validate=false
           kubectl apply -f rbac/gh-actions.yaml
           echo "::endgroup::"
-          
+
           echo "::group::Phase 2: Wait for CRDs"
           kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | \
             xargs kubectl wait --for=condition=Established --timeout=180s
           echo "::endgroup::"
-          
+
           echo "::group::Phase 3: Secrets + Middlewares"
           kubectl apply -k secrets/
           kubectl apply -k middlewares/
@@ -145,7 +145,7 @@ jobs:
       - name: ArgoCD diff and sync
         run: |
           argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password ${{ secrets.ARGOCD_PASSWORD }} --insecure
-          
+
           echo "::group::ArgoCD diff"
           argocd app diff cluster-root --grpc-web || {
             echo "::warning::ArgoCD diff detected changes, proceeding with sync"

@@ -27,9 +27,9 @@ extraObjects:
         - '*.127.0.0.1.nip.io'
       issuerRef:
         name: local-ca-issuer
-        kind: ClusterIssuer      
+        kind: ClusterIssuer
 
 tlsStore:
   default:
     defaultCertificate:
-      secretName: "wildcard-minikube-tls"        
+      secretName: "wildcard-minikube-tls"

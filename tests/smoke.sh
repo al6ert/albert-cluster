@@ -28,17 +28,17 @@ setup_port_forward() {
   echo "🔌 Setting up port-forward to Traefik..."
   # Kill any existing port-forward on 8443 just in case
   lsof -ti:8443 | xargs kill -9 2>/dev/null || true
-  
+
   kubectl port-forward -n traefik svc/traefik 8443:443 >/dev/null 2>&1 &
   PF_PID=$!
-  
+
   # Wait for port to be open
   local retries=10
   while ! nc -z 127.0.0.1 8443 && [ $retries -gt 0 ]; do
     sleep 1
     ((retries--))
   done
-  
+
   if [ $retries -eq 0 ]; then
     log_error "Failed to establish port-forward to Traefik"
     return 1
@@ -131,10 +131,10 @@ test_critical_services() {
 # Test 5 – Funcionalidad de la Hello app
 test_hello_app() {
   echo "🌐 Test 5: Testing Hello app functionality (HTTPS via Ingress)..."
-  
+
   local host_ip="127.0.0.1"
   local url="https://hello.127.0.0.1.nip.io:8443/"
-  
+
   local ok=false
   for i in {1..3}; do
     # Use -k because it's a self-signed cert (or CA might not be trusted by curl in runner)
@@ -169,7 +169,7 @@ test_traefik_auth() {
 
   # 1) Intento HTTPS usando port-forward (puerto 8443)
   local host_ip="127.0.0.1"
-  
+
   # Usamos --resolve para forzar la resolución del dominio a localhost
   dashboard_url="https://traefik.127.0.0.1.nip.io:8443/dashboard/"
   for i in {1..3}; do
@@ -293,10 +293,10 @@ show_cluster_status() {
 # ---------- Ejecución principal ----------
 main() {
   local failed=0 total=0
-  
+
   # Start port-forwarding before tests
   setup_port_forward || return 1
-  
+
   local tests=(
     test_pods_running
     test_readiness

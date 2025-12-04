@@ -29,4 +29,3 @@ persistence:
   enabled: false
   path: /data
   size: 128Mi
-

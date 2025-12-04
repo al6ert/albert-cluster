@@ -13,8 +13,7 @@ releases:
     version: {{ env "ARGOCD_CHART_VERSION" }}
     namespace: argocd
     values:
-      - values.yaml  # Valores locales para Ingress y middleware 
+      - values.yaml  # Valores locales para Ingress y middleware
       - values-helmfile.yaml.gotmpl  # Configuración para Helmfile plugin
       - ../../envs/{{ .Environment.Name }}/global-values.yaml
-      - ../../envs/{{ .Environment.Name }}/argocd-values.yaml      
-      
+      - ../../envs/{{ .Environment.Name }}/argocd-values.yaml

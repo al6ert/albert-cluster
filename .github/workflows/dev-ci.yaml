@@ -99,6 +99,8 @@ jobs:
           echo "::group::Phase 4: Install cert-manager"
           cd ../apps/cert-manager
           helmfile --environment minikube apply --suppress-secrets
+          
+          # Wait for deployments
           kubectl wait deployment -n cert-manager --all --for=condition=Available --timeout=300s || {
             echo "⚠️ Cert-manager deployments not ready"
             kubectl get deployments -n cert-manager
@@ -107,77 +109,26 @@ jobs:
             kubectl get events -n cert-manager
             exit 1
           }
-          echo "::endgroup::"
-          
-          echo "::group::Phase 5: Create Self-Signed CA for local-ca-issuer"
-          # Create selfsigned ClusterIssuer
-          kubectl delete clusterissuer selfsigned-issuer --ignore-not-found=true
-          cat <<EOF | kubectl create -f -
-          apiVersion: cert-manager.io/v1
-          kind: ClusterIssuer
-          metadata:
-            name: selfsigned-issuer
-          spec:
-            selfSigned: {}
-          EOF
-          kubectl wait clusterissuer/selfsigned-issuer --for=condition=Ready --timeout=120s || {
-            echo "⚠️ SelfSigned ClusterIssuer not ready"
-            kubectl describe clusterissuer selfsigned-issuer
-            kubectl logs -n cert-manager -l app.kubernetes.io/name=cert-manager --tail=200 || echo "No cert-manager logs available"
-            kubectl get events -n cert-manager
+
+          # Wait for Local CA (defined in infra/envs/minikube/cert-manager-values.yaml)
+          echo "Waiting for Local CA..."
+          kubectl wait certificate/local-ca -n cert-manager --for=condition=Ready --timeout=180s || {
+            echo "⚠️ Local CA Certificate not ready"
+            kubectl describe certificate local-ca -n cert-manager
             exit 1
           }
           
-          # Create root CA Certificate using selfsigned issuer
-          kubectl delete certificate root-ca-cert -n cert-manager --ignore-not-found=true
-          cat <<EOF | kubectl create -f -
-          apiVersion: cert-manager.io/v1
-          kind: Certificate
-          metadata:
-            name: root-ca-cert
-            namespace: cert-manager
-          spec:
-            isCA: true
-            commonName: "Local Root CA"
-            secretName: root-ca-secret
-            privateKey:
-              algorithm: ECDSA
-              size: 256
-            issuerRef:
-              name: selfsigned-issuer
-              kind: ClusterIssuer
-              group: cert-manager.io
-          EOF
-          kubectl wait certificate/root-ca-cert -n cert-manager --for=condition=Ready --timeout=180s || {
-            echo "⚠️ Root CA Certificate not ready"
-            kubectl describe certificate root-ca-cert -n cert-manager
-            kubectl logs -n cert-manager -l app.kubernetes.io/name=cert-manager --tail=200 || echo "No cert-manager logs available"
-            kubectl get events -n cert-manager
-            exit 1
-          }
-          
-          # Create CA ClusterIssuer using the root CA secret
-          kubectl delete clusterissuer local-ca-issuer --ignore-not-found=true
-          cat <<EOF | kubectl create -f -
-          apiVersion: cert-manager.io/v1
-          kind: ClusterIssuer
-          metadata:
-            name: local-ca-issuer
-          spec:
-            ca:
-              secretName: root-ca-secret
-          EOF
-          kubectl wait clusterissuer/local-ca-issuer --for=condition=Ready --timeout=120s || {
+          echo "Waiting for Local CA ClusterIssuer..."
+          kubectl wait clusterissuer/local-ca-issuer --for=condition=Ready --timeout=180s || {
             echo "⚠️ Local CA ClusterIssuer not ready"
             kubectl describe clusterissuer local-ca-issuer
-            kubectl logs -n cert-manager -l app.kubernetes.io/name=cert-manager --tail=200 || echo "No cert-manager logs available"
-            kubectl get events -n cert-manager
             exit 1
           }
-          echo "✅ Local CA ClusterIssuer ready"
+          
+          echo "✅ Cert-manager and Local CA ready"
           echo "::endgroup::"
           
-          echo "::group::Phase 6: Install SealedSecrets Controller"
+          echo "::group::Phase 5: Install SealedSecrets Controller"
           cd ../sealed-secrets
           helmfile --environment minikube apply --suppress-secrets
           kubectl wait deployment/sealed-secrets -n kube-system --for=condition=Available --timeout=300s || {

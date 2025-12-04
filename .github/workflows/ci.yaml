@@ -213,7 +213,7 @@ jobs:
 
       - name: ArgoCD diff and sync
         run: |
-          argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password ${{ secrets.ARGOCD_PASSWORD }} --insecure
+          argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password ${{ secrets.ARGOCD_PASSWORD }} --insecure --grpc-web
 
           echo "::group::ArgoCD diff"
           argocd app diff cluster-root --grpc-web || {

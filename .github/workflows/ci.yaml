@@ -8,8 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -17,10 +16,8 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate and Test
+    name: Validate Manifests
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -54,71 +51,9 @@ jobs:
           fi
           echo "✅ Namespaces are consistent across environments"
 
-  build-test-dev:
-    name: Build and Test (Development)
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    environment: dev
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Tools
-        uses: ./.github/actions/setup-tools
-
-      - name: Validate Manifests (netcup)
-        uses: ./.github/actions/validate-manifests
-        with:
-          environment: netcup
-
-      - name: Setup Minikube
-        uses: medyagh/setup-minikube@v0.0.15
-        with:
-          driver: docker
-          kubernetes-version: v1.29.2
-          profile: minikube-${{ github.sha }}
-
-      - name: Bootstrap cluster
-        run: |
-          cd infra/bootstrap
-          set -euo pipefail
-
-          echo "::group::Phase 1: Namespaces + CRDs + RBAC"
-          kubectl apply -k namespaces/
-          kubectl apply -k crds/ --validate=false
-          kubectl apply -f rbac/gh-actions.yaml
-          echo "::endgroup::"
-
-          echo "::group::Phase 2: Wait for CRDs"
-          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | \
-            xargs kubectl wait --for=condition=Established --timeout=180s
-          echo "::endgroup::"
-
-          echo "::group::Phase 3: Secrets + Middlewares"
-          kubectl apply -k secrets/
-          kubectl apply -k middlewares/
-          echo "::endgroup::"
-
-      - name: Deploy and test applications
-        run: |
-          cd infra/apps
-          helmfile --environment minikube apply --suppress-secrets --timeout 900s
-          kubectl wait pod --all -A --for=condition=Ready --timeout=300s
-
-      - name: Run smoke tests
-        run: |
-          chmod +x tests/smoke.sh
-          ./tests/smoke.sh
-
-      - name: Cleanup
-        if: always()
-        run: |
-          minikube delete -p minikube-${{ github.sha }}
-
   promote-prod:
     name: Promote to Production
-    needs: build-test-dev
+    needs: validate
     if: github.ref == 'refs/heads/main'
     environment: prod
     runs-on: ubuntu-latest

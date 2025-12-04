@@ -17,10 +17,18 @@ ingressRoute:
     # Domain will be injected from environment layer
     matchRule: >
       Host(`traefik.{{ .Values.network.domain | default "example.com" }}`)
-      && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))    
+      && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
     middlewares:
       - name: basic-auth
-        namespace: admin      
+        namespace: admin
+
+ports:
+  web:
+    redirections:
+      entryPoint:
+        to: websecure
+        scheme: https
+        permanent: true
 
 service:
   type: LoadBalancer
@@ -29,4 +37,3 @@ persistence:
   enabled: false
   path: /data
   size: 128Mi
-

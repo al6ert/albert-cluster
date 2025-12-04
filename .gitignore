@@ -1,7 +1,7 @@
 .DS_Store
 .env
 .env.*
-.cursor 
+.cursor
 # Kubernetes artefacts que NO quieres subir (ej. secrets)
 *.enc.yaml
 *-secret.yaml
@@ -24,3 +24,5 @@ infra/rendered/**
 tmp/**
 .tmp/
 *.tmp
+
+.dev-ci-logs

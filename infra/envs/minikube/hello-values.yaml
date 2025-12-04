@@ -13,4 +13,4 @@ traefik:
     tlsSecret: wildcard-minikube-tls
 
 app:
-  message: "¡Hola desde Minikube!" 
+  message: "¡Hola desde Minikube!"

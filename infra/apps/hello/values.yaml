@@ -21,6 +21,10 @@ ingress:
       paths:
         - path: /
           pathType: Prefix
+  tls:
+    - secretName: wildcard-minikube-tls
+      hosts:
+        - hello.{{ .Environment.Values.network.domain }}
   entryPoints:
     - websecure
 

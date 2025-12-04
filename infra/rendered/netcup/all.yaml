@@ -1158,7 +1158,7 @@ spec:
           - --dynamic-serving-dns-names=cert-manager-webhook
           - --dynamic-serving-dns-names=cert-manager-webhook.$(POD_NAMESPACE)
           - --dynamic-serving-dns-names=cert-manager-webhook.$(POD_NAMESPACE).svc
-          
+
           ports:
           - name: https
             protocol: TCP
@@ -1937,7 +1937,7 @@ spec:
       maxUnavailable: 0
       maxSurge: 1
   minReadySeconds: 0
-  template: 
+  template:
     metadata:
       annotations:
         prometheus.io/scrape: "true"
@@ -2021,7 +2021,7 @@ spec:
           - "--providers.kubernetesingress.ingressendpoint.publishedservice=traefik/traefik"
           - "--entryPoints.websecure.http.tls=true"
           - "--log.level=INFO"
-          
+
         env:
           - name: POD_NAME
             valueFrom:
@@ -2199,4 +2199,3 @@ spec:
           port: 80
   tls:
     secretName: wildcard-netcup-tls
-

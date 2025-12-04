@@ -13,4 +13,4 @@ traefik:
     tlsSecret: wildcard-netcup-tls
 
 app:
-  message: "¡Hola desde Netcup!" 
+  message: "¡Hola desde Netcup!"

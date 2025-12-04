@@ -71,7 +71,7 @@ spec:
                             map:
                               type: object
                               additionalProperties:
-                                type: string                  
+                                type: string
               destination:
                 type: object
                 properties:

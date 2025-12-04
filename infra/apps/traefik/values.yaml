@@ -22,6 +22,14 @@ ingressRoute:
       - name: basic-auth
         namespace: admin
 
+ports:
+  web:
+    redirections:
+      entryPoint:
+        to: websecure
+        scheme: https
+        permanent: true
+
 service:
   type: LoadBalancer
 

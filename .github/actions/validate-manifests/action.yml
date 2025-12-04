@@ -8,7 +8,7 @@ inputs:
   working-directory:
     description: 'Working directory for helmfile operations'
     required: false
-    required: false
+
     default: 'infra/apps'
   skip-diff:
     description: 'Skip helmfile diff (useful when no cluster is available)'

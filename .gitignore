@@ -26,3 +26,4 @@ tmp/**
 *.tmp
 
 .dev-ci-logs
+.ci-logs

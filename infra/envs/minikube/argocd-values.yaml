@@ -8,3 +8,12 @@ server:
       service:
         port:
           number: 80
+
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

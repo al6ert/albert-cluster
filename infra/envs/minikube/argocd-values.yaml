@@ -20,6 +20,7 @@ controller:
 
 redis:
   image:
+    repository: redis
     tag: 7.4.1-alpine
 
 repoServer:

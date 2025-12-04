@@ -213,7 +213,15 @@ jobs:
 
       - name: ArgoCD diff and sync
         run: |
-          argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password ${{ secrets.ARGOCD_PASSWORD }} --insecure --grpc-web
+          ARGOCD_SERVER="${{ secrets.ARGOCD_SERVER }}"
+          ARGOCD_SERVER="${ARGOCD_SERVER#https://}"
+          ARGOCD_SERVER="${ARGOCD_SERVER#http://}"
+          
+          echo "::group::Debug Connectivity"
+          curl -I "https://${ARGOCD_SERVER}" || echo "::warning::Failed to connect to ${ARGOCD_SERVER}"
+          echo "::endgroup::"
+
+          argocd login "${ARGOCD_SERVER}" --username admin --password ${{ secrets.ARGOCD_PASSWORD }} --insecure --grpc-web
 
           echo "::group::ArgoCD diff"
           argocd app diff cluster-root --grpc-web || {

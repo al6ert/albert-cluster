@@ -1,10 +1,12 @@
 server:
   ingress:
     enabled: true
+    ingressClassName: traefik
     hostname: argo.albertperez.dev
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
     backend:
       service:
+        name: argocd-server
         port:
           number: 80

@@ -99,8 +99,7 @@ test_critical_services() {
 test_hello_app() {
   echo "🌐 Test 5: Testing Hello app functionality (HTTPS via Ingress)..."
   
-  local host_ip
-  host_ip=$(minikube ip 2>/dev/null || echo "127.0.0.1")
+  local host_ip="127.0.0.1"
   local url="https://hello.127.0.0.1.nip.io/"
   
   local ok=false
@@ -136,8 +135,7 @@ test_traefik_auth() {
 
   # 1) Intento HTTPS
   # 1) Intento HTTPS usando minikube ip si está disponible, o localhost
-  local host_ip
-  host_ip=$(minikube ip 2>/dev/null || echo "127.0.0.1")
+  local host_ip="127.0.0.1"
   
   # Usamos --resolve para forzar la resolución del dominio a la IP de Minikube
   dashboard_url="https://traefik.127.0.0.1.nip.io/dashboard/"

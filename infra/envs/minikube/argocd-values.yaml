@@ -21,3 +21,12 @@ controller:
 redis:
   image:
     tag: 7.4.1-alpine
+
+repoServer:
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi

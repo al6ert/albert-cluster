@@ -29,7 +29,8 @@ test_pods_running() {
   local crashed_pods
   crashed_pods=$(kubectl get pods --all-namespaces \
        --field-selector=status.phase!=Running,status.phase!=Succeeded \
-       -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || true)
+       -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.containerStatuses[*].state.waiting.reason}{"\n"}{end}' 2>/dev/null | \
+       grep -v "PodInitializing" | awk '{print $1}' || true)
 
   if [ -n "$crashed_pods" ]; then
     log_error "Found pods not in Running/Succeeded state:"
@@ -132,9 +133,15 @@ test_traefik_auth() {
   local dashboard_url code
 
   # 1) Intento HTTPS
+  # 1) Intento HTTPS usando minikube ip si está disponible, o localhost
+  local host_ip
+  host_ip=$(minikube ip 2>/dev/null || echo "127.0.0.1")
+  
+  # Usamos --resolve para forzar la resolución del dominio a la IP de Minikube
   dashboard_url="https://traefik.127.0.0.1.nip.io/dashboard/"
   for i in {1..3}; do
     code=$(curl -k -s -o /dev/null -w "%{http_code}" \
+           --resolve "traefik.127.0.0.1.nip.io:443:$host_ip" \
            "$dashboard_url" --max-time 20 || echo 000)
     [ "$code" != 000 ] && break
     log_warn "Retry $i: HTTPS not reachable, sleeping 10 s…"; sleep 10

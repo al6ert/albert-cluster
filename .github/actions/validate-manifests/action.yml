@@ -83,4 +83,4 @@ runs:
           exit $status
         fi
         echo "✅ Helmfile diff passed - no destructive changes detected"
-        echo "::endgroup::" 
+        echo "::endgroup::"

@@ -5,6 +5,7 @@ server:
     hostname: argo.albertperez.dev
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
+      traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
     backend:
       service:
         name: argocd-server

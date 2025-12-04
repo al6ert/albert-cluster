@@ -97,30 +97,32 @@ test_critical_services() {
 
 # Test 5 – Funcionalidad de la Hello app
 test_hello_app() {
-  echo "🌐 Test 5: Testing Hello app functionality..."
-  kubectl port-forward svc/hello 8080:80 -n hello >/dev/null 2>&1 &
-  local pf_pid=$!
-  sleep 10  # espera inicial
+  echo "🌐 Test 5: Testing Hello app functionality (HTTPS via Ingress)..."
+  
+  local host_ip
+  host_ip=$(minikube ip 2>/dev/null || echo "127.0.0.1")
+  local url="https://hello.127.0.0.1.nip.io/"
+  
   local ok=false
   for i in {1..3}; do
-    if curl -f -s http://localhost:8080/ >/dev/null; then
+    # Use -k because it's a self-signed cert (or CA might not be trusted by curl in runner)
+    if curl -k -f -s --resolve "hello.127.0.0.1.nip.io:443:$host_ip" "$url" >/dev/null; then
       ok=true; break
     fi
-    log_warn "Retry $i: Hello app not responding, sleeping 10s..."
+    log_warn "Retry $i: Hello app not reachable via Ingress, sleeping 10s..."
     sleep 10
   done
+
   if $ok; then
     local resp
-    resp=$(curl -s http://localhost:8080/ || echo "")
+    resp=$(curl -k -s --resolve "hello.127.0.0.1.nip.io:443:$host_ip" "$url" || echo "")
     [[ "$resp" =~ (Hola\ desde\ Minikube|Hello) ]] \
       && log_debug "Hello app content is correct" \
       || log_warn "Hello app content unexpected: $resp"
     log_info "Hello app functionality test passed"
-    kill "$pf_pid" >/dev/null 2>&1 || true
     return 0
   else
-    kill "$pf_pid" >/dev/null 2>&1 || true
-    log_error "Hello app not responding after retries"
+    log_error "Hello app not responding via Ingress after retries"
     return 1
   fi
 }

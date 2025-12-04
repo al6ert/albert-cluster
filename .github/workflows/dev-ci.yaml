@@ -278,7 +278,7 @@ jobs:
       - name: Enhanced smoke tests
         run: |
           chmod +x tests/smoke.sh
-          ./tests/smoke.sh
+          WAIT_TIMEOUT=300s ./tests/smoke.sh
 
       - name: Cleanup Minikube
         if: always()

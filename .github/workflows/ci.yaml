@@ -217,6 +217,10 @@ jobs:
           ARGOCD_SERVER="${ARGOCD_SERVER#https://}"
           ARGOCD_SERVER="${ARGOCD_SERVER#http://}"
           
+          # Bypass Cloudflare by adding entry to /etc/hosts
+          # IP obtained from Netcup VPS
+          echo "188.68.42.77 ${ARGOCD_SERVER}" | sudo tee -a /etc/hosts
+          
           echo "::group::Debug Connectivity"
           curl -I "https://${ARGOCD_SERVER}" || echo "::warning::Failed to connect to ${ARGOCD_SERVER}"
           echo "::endgroup::"

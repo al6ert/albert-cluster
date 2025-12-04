@@ -21,6 +21,39 @@ log_warn()  { echo -e "${YELLOW}⚠️  $1${NC}"; }
 log_error() { echo -e "${RED}❌ $1${NC}"; }
 log_debug() { echo -e "${BLUE}🔍 $1${NC}"; }
 
+
+# ---------- Port Forwarding Setup ----------
+PF_PID=""
+setup_port_forward() {
+  echo "🔌 Setting up port-forward to Traefik..."
+  # Kill any existing port-forward on 8443 just in case
+  lsof -ti:8443 | xargs kill -9 2>/dev/null || true
+  
+  kubectl port-forward -n traefik svc/traefik 8443:443 >/dev/null 2>&1 &
+  PF_PID=$!
+  
+  # Wait for port to be open
+  local retries=10
+  while ! nc -z 127.0.0.1 8443 && [ $retries -gt 0 ]; do
+    sleep 1
+    ((retries--))
+  done
+  
+  if [ $retries -eq 0 ]; then
+    log_error "Failed to establish port-forward to Traefik"
+    return 1
+  fi
+  log_info "Port-forward established on 127.0.0.1:8443"
+}
+
+cleanup() {
+  if [ -n "$PF_PID" ]; then
+    echo "🧹 Cleaning up port-forward..."
+    kill $PF_PID 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
 # ---------- Tests ----------
 
 # Test 1 – Todos los pods Running/Succeeded
@@ -100,21 +133,22 @@ test_hello_app() {
   echo "🌐 Test 5: Testing Hello app functionality (HTTPS via Ingress)..."
   
   local host_ip="127.0.0.1"
-  local url="https://hello.127.0.0.1.nip.io/"
+  local url="https://hello.127.0.0.1.nip.io:8443/"
   
   local ok=false
   for i in {1..3}; do
     # Use -k because it's a self-signed cert (or CA might not be trusted by curl in runner)
-    if curl -k -f -s --resolve "hello.127.0.0.1.nip.io:443:$host_ip" "$url" >/dev/null; then
+    # Target port 8443 via localhost
+    if curl -k -f -s --resolve "hello.127.0.0.1.nip.io:8443:$host_ip" "$url" >/dev/null; then
       ok=true; break
     fi
-    log_warn "Retry $i: Hello app not reachable via Ingress, sleeping 10s..."
+    log_warn "Retry $i: Hello app not reachable via Ingress (port 8443), sleeping 10s..."
     sleep 10
   done
 
   if $ok; then
     local resp
-    resp=$(curl -k -s --resolve "hello.127.0.0.1.nip.io:443:$host_ip" "$url" || echo "")
+    resp=$(curl -k -s --resolve "hello.127.0.0.1.nip.io:8443:$host_ip" "$url" || echo "")
     [[ "$resp" =~ (Hola\ desde\ Minikube|Hello) ]] \
       && log_debug "Hello app content is correct" \
       || log_warn "Hello app content unexpected: $resp"
@@ -133,18 +167,17 @@ test_traefik_auth() {
 
   local dashboard_url code
 
-  # 1) Intento HTTPS
-  # 1) Intento HTTPS usando minikube ip si está disponible, o localhost
+  # 1) Intento HTTPS usando port-forward (puerto 8443)
   local host_ip="127.0.0.1"
   
-  # Usamos --resolve para forzar la resolución del dominio a la IP de Minikube
-  dashboard_url="https://traefik.127.0.0.1.nip.io/dashboard/"
+  # Usamos --resolve para forzar la resolución del dominio a localhost
+  dashboard_url="https://traefik.127.0.0.1.nip.io:8443/dashboard/"
   for i in {1..3}; do
     code=$(curl -k -s -o /dev/null -w "%{http_code}" \
-           --resolve "traefik.127.0.0.1.nip.io:443:$host_ip" \
+           --resolve "traefik.127.0.0.1.nip.io:8443:$host_ip" \
            "$dashboard_url" --max-time 20 || echo 000)
     [ "$code" != 000 ] && break
-    log_warn "Retry $i: HTTPS not reachable, sleeping 10 s…"; sleep 10
+    log_warn "Retry $i: HTTPS not reachable on port 8443, sleeping 10 s…"; sleep 10
   done
 
   # 2) Fallback HTTP si HTTPS no responde
@@ -260,6 +293,10 @@ show_cluster_status() {
 # ---------- Ejecución principal ----------
 main() {
   local failed=0 total=0
+  
+  # Start port-forwarding before tests
+  setup_port_forward || return 1
+  
   local tests=(
     test_pods_running
     test_readiness

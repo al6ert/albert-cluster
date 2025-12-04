@@ -202,6 +202,7 @@ jobs:
         uses: ./.github/actions/validate-manifests
         with:
           environment: netcup
+          skip-diff: true
 
       - name: Install ArgoCD CLI
         run: |

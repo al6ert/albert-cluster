@@ -264,13 +264,16 @@ jobs:
 
       - name: Check for crashloops
         run: |
-          CRASHED_PODS=$(kubectl get pods --all-namespaces --field-selector=status.phase!=Running -o jsonpath='{.items[*].metadata.name}')
+          # Check for pods with actual error states, ignoring Completed jobs
+          CRASHED_PODS=$(kubectl get pods -A | grep -v "Completed" | grep -E "CrashLoopBackOff|ImagePullBackOff|ErrImagePull|Error" || true)
+          
           if [ -n "$CRASHED_PODS" ]; then
-            echo "::error::Found pods not in Running state:"
-            kubectl get pods --all-namespaces --field-selector=status.phase!=Running
+            echo "::error::Found pods in error state:"
+            echo "$CRASHED_PODS"
+            kubectl get pods -A -o wide
             exit 1
           fi
-          echo "✅ All pods are running"
+          echo "✅ No crashloops found"
 
       - name: Enhanced smoke tests
         run: |

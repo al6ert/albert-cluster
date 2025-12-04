@@ -17,3 +17,7 @@ controller:
     limits:
       cpu: 500m
       memory: 512Mi
+
+redis:
+  image:
+    tag: 7.4.1-alpine

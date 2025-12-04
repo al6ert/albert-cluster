@@ -250,13 +250,20 @@ jobs:
           kubectl get events -n cert-manager
           kubectl get events -n kube-system
 
-      - name: Wait for all pods to be ready
+      - name: Wait for applications to be ready
         run: |
-          kubectl wait pod --all -A --for=condition=Ready --timeout=600s || {
-            echo "⚠️ Timeout reached, checking pod status..."
-            kubectl get pods -A -o wide
-            exit 1
-          }
+          echo "::group::Wait for ArgoCD"
+          kubectl wait deployment -n argocd --all --for=condition=Available --timeout=300s
+          kubectl wait statefulset -n argocd --all --for=condition=Ready --timeout=300s
+          echo "::endgroup::"
+
+          echo "::group::Wait for Traefik"
+          kubectl wait deployment -n traefik --all --for=condition=Available --timeout=300s
+          echo "::endgroup::"
+
+          echo "::group::Wait for Hello App"
+          kubectl wait deployment -n hello --all --for=condition=Available --timeout=300s
+          echo "::endgroup::"
 
       - name: Check for crashloops
         run: |

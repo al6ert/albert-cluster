@@ -1,0 +1,71 @@
+# infra/envs/netcup/prometheus-values.yaml
+# https://github.com/prometheus-community/helm-charts/blob/main/charts/kube-prometheus-stack/values.yaml
+
+grafana:
+  enabled: true
+  adminPassword: "${GRAFANA_ADMIN_PASSWORD}" # Set via sealed secret
+  persistence:
+    enabled: true
+    size: 10Gi
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - grafana.albertperez.dev
+    path: /
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.albertperez.dev
+
+prometheus:
+  enabled: true
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - prometheus.albertperez.dev
+    paths:
+      - /
+    tls:
+      - secretName: prometheus-tls
+        hosts:
+          - prometheus.albertperez.dev
+  prometheusSpec:
+    retention: 30d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+    resources:
+      requests:
+        memory: 2Gi
+        cpu: 500m
+      limits:
+        memory: 4Gi
+        cpu: 2000m
+
+alertmanager:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 10Gi
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - alertmanager.albertperez.dev
+    path: /
+    tls:
+      - secretName: alertmanager-tls
+        hosts:
+          - alertmanager.albertperez.dev

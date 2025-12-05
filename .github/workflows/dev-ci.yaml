@@ -202,6 +202,7 @@ jobs:
         with:
           environment: minikube
           working-directory: infra/apps
+          skip-diff: true
         env:
           KUBECONFORM_ARGS: -schema-location default -schema-location 'https://raw.githubusercontent.com/traefik/traefik/v3.4.3/traefik.crds.yaml'
 
@@ -214,7 +215,7 @@ jobs:
         run: |
           cd infra/apps
           # Desplegar solo Traefik y aplicaciones posteriores, ya que cert-manager y sealed-secrets ya están desplegados
-          helmfile --environment minikube apply --suppress-secrets --skip-diff-on-install --selector 'name!=cert-manager,name!=sealed-secrets'
+          helmfile --environment minikube apply --suppress-secrets --skip-diff --selector 'name!=cert-manager,name!=sealed-secrets'
           kubectl wait deployment -n traefik --all --for=condition=Available --timeout=300s || {
             echo "⚠️ Traefik deployments not ready"
             kubectl get deployments -n traefik

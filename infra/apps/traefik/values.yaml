@@ -8,6 +8,10 @@ global:
 providers:
   kubernetesCRD:
     allowCrossNamespace: true        # For centralized middleware
+  kubernetesIngress:
+    enabled: true
+    publishedService:
+      enabled: true
 
 
 ingressRoute:

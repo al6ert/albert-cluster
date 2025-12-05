@@ -24,6 +24,7 @@ prometheus:
       - prometheus.127.0.0.1.nip.io
     paths:
       - /
+    pathType: Prefix
   prometheusSpec:
     # Reducir retención y recursos para dev
     retention: 2d

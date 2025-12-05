@@ -98,7 +98,7 @@ jobs:
 
           echo "::group::Phase 4: Install cert-manager"
           cd ../apps/cert-manager
-          helmfile --environment minikube apply --suppress-secrets
+          helmfile --environment minikube sync
 
           # Wait for deployments
           kubectl wait deployment -n cert-manager --all --for=condition=Available --timeout=300s || {
@@ -130,7 +130,7 @@ jobs:
 
           echo "::group::Phase 5: Install SealedSecrets Controller"
           cd ../sealed-secrets
-          helmfile --environment minikube apply --suppress-secrets
+          helmfile --environment minikube sync
           kubectl wait deployment/sealed-secrets -n kube-system --for=condition=Available --timeout=300s || {
             echo "⚠️ SealedSecrets controller not ready"
             kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets --tail=200
@@ -215,7 +215,7 @@ jobs:
         run: |
           cd infra/apps
           # Desplegar solo Traefik y aplicaciones posteriores, ya que cert-manager y sealed-secrets ya están desplegados
-          helmfile --environment minikube sync --suppress-secrets --selector 'name!=cert-manager,name!=sealed-secrets'
+          helmfile --environment minikube sync --selector 'name!=cert-manager,name!=sealed-secrets'
           kubectl wait deployment -n traefik --all --for=condition=Available --timeout=300s || {
             echo "⚠️ Traefik deployments not ready"
             kubectl get deployments -n traefik

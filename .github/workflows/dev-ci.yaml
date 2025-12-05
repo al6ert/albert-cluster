@@ -263,6 +263,10 @@ jobs:
           kubectl wait deployment -n hello --all --for=condition=Available --timeout=300s
           echo "::endgroup::"
 
+          echo "::group::Wait for Prometheus Stack"
+          kubectl wait deployment -n monitoring --all --for=condition=Available --timeout=300s
+          echo "::endgroup::"
+
       - name: Check for crashloops
         run: |
           # Check for pods with actual error states, ignoring Completed jobs

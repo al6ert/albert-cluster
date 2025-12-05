@@ -35,6 +35,28 @@ repoServer:
     - name: helmfile
       image: ghcr.io/helmfile/helmfile:v1.1.2
       command: ["/var/run/argocd/argocd-cmp-server"]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      env:
+        - name: HELMFILE_ENVIRONMENT
+          value: minikube
+        - name: HELM_CACHE_HOME
+          value: /tmp/helm-cache
+        - name: HELM_CONFIG_HOME
+          value: /tmp/helm-config
+        - name: HELM_DATA_HOME
+          value: /tmp/helm-data
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: plugin.yaml
+          name: helmfile-plugin-cm
+        - mountPath: /tmp
+          name: cmp-tmp
       resources:
         limits:
           cpu: 500m

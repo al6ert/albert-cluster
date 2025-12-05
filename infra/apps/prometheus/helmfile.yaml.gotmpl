@@ -14,8 +14,5 @@ releases:
     version: {{ env "PROMETHEUS_CHART_VERSION" | default "79.11.0" }}
     namespace: monitoring
     createNamespace: true
-    # Skip diff due to CRDs - canonical approach for operators
-    disableValidationOnInstall: true
-    skipDiffOnUpgrade: true
     values:
       - ../../envs/{{ .Environment.Name }}/prometheus-values.yaml

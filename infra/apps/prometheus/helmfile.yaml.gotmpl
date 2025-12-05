@@ -1,0 +1,18 @@
+environments:
+  minikube: {}
+  netcup: {}
+
+---
+
+repositories:
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
+
+releases:
+  - name: prometheus
+    chart: prometheus-community/kube-prometheus-stack
+    version: {{ env "PROMETHEUS_CHART_VERSION" | default "79.11.0" }}
+    namespace: monitoring
+    createNamespace: true
+    values:
+      - ../../envs/{{ .Environment.Name }}/prometheus-values.yaml

@@ -29,6 +29,8 @@ spec:
           value: "0.1.0"
         - name: ARGOCD_CHART_VERSION
           value: "8.1.3"
+        - name: PROMETHEUS_CHART_VERSION
+          value: "79.11.0"
   syncPolicy:
     automated:
       prune: true

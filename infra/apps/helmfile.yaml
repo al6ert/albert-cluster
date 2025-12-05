@@ -18,3 +18,5 @@ helmfiles:
   - path: ./traefik/helmfile.yaml.gotmpl        # wave 1
   - path: ./argocd/helmfile.yaml.gotmpl         # wave 2
   - path: ./hello/helmfile.yaml.gotmpl          # wave 3
+  - path: ./prometheus/helmfile.yaml.gotmpl     # wave 3
+

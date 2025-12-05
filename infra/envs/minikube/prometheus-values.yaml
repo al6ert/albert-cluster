@@ -1,0 +1,45 @@
+# infra/envs/minikube/prometheus-values.yaml
+# https://github.com/prometheus-community/helm-charts/blob/main/charts/kube-prometheus-stack/values.yaml
+
+# Deshabilitar Ingress por defecto en Dev/Minikube para no saturar 
+# o configurar Ingress si se desea acceder vía URL.
+# Para dev, port-forward suele ser suficiente, pero podemos habilitar ingress básico.
+
+grafana:
+  enabled: true
+  adminPassword: "admin" # Simple password for dev
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - grafana.127.0.0.1.nip.io
+    path: /
+
+prometheus:
+  enabled: true
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - prometheus.127.0.0.1.nip.io
+    paths:
+      - /
+  prometheusSpec:
+    # Reducir retención y recursos para dev
+    retention: 2d
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+        cpu: 500m
+
+alertmanager:
+  enabled: true
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - alertmanager.127.0.0.1.nip.io
+    path: /

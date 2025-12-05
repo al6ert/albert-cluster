@@ -33,6 +33,8 @@ repoServer:
       memory: 256Mi
   extraContainers:
     - name: helmfile
+      image: ghcr.io/helmfile/helmfile:v1.1.2
+      command: ["/var/run/argocd/argocd-cmp-server"]
       resources:
         limits:
           cpu: 500m

@@ -35,11 +35,38 @@ This project and everyone participating in it is governed by our Code of Conduct
 
 ## Development Setup
 
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Set up local Kubernetes cluster (minikube/kind)
-4. Run tests: `npm test`
-5. Start development server: `npm run dev`
+1. **Prerequisites**:
+   - Docker (for Minikube driver)
+   - `kubectl`
+   - `minikube`
+   - `helm`
+   - `helmfile`
+   - `kubeseal`
+   - `jq` (for script output formatting)
+
+   *Tip: You can source `versions.env` to see the recommended versions.*
+
+2. **Clone the repository**:
+   ```bash
+   git clone <repository-url>
+   cd albert-cluster
+   ```
+
+3. **Start Minikube**:
+   ```bash
+   minikube start --driver=docker --kubernetes-version=v1.29.2
+   ```
+
+4. **Deploy Locally**:
+   ```bash
+   # This script handles bootstrap and application deployment
+   ./deploy-local.sh
+   ```
+
+5. **Verify Deployment**:
+   ```bash
+   ./tests/smoke.sh
+   ```
 
 ## Code Style
 

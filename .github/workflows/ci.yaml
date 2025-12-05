@@ -77,92 +77,14 @@ jobs:
           minikube addons disable ingress
           minikube addons disable storage-provisioner
 
-      - name: Bootstrap cluster
+      - name: Install Dependencies
         run: |
-          cd infra/bootstrap
-          set -euo pipefail
-
-          echo "::group::Phase 1: Apply CRDs"
-          kubectl apply -k crds/ --validate=false
-          echo "::endgroup::"
-
-          echo "::group::Phase 2: Wait for CRDs"
-          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | \
-            xargs kubectl wait --for=condition=Established --timeout=180s
-          echo "::endgroup::"
-
-          echo "::group::Phase 3: Apply Namespaces, RBAC, and Middlewares"
-          kubectl apply -k namespaces/
-          kubectl apply -f rbac/gh-actions.yaml
-          kubectl apply -k middlewares/
-          echo "::endgroup::"
-
-          echo "::group::Phase 4: Install cert-manager"
-          cd ../apps/cert-manager
-          helmfile --environment minikube apply --suppress-secrets
-          kubectl wait deployment -n cert-manager --all --for=condition=Available --timeout=300s
-          kubectl wait certificate/local-ca -n cert-manager --for=condition=Ready --timeout=180s
-          kubectl wait clusterissuer/local-ca-issuer --for=condition=Ready --timeout=180s
-          echo "✅ Cert-manager ready"
-          echo "::endgroup::"
-
-          echo "::group::Phase 5: Install SealedSecrets"
-          cd ../sealed-secrets
-          helmfile --environment minikube apply --suppress-secrets
-          kubectl wait deployment/sealed-secrets -n kube-system --for=condition=Available --timeout=300s
-          cd ../../bootstrap
-          echo "::endgroup::"
-
-          echo "::group::Phase 6: Generate and Apply Sealed Secrets"
           sudo apt-get update && sudo apt-get install -y apache2-utils
-          ../../scripts/generate-credentials.sh --namespace admin --users admin --secret-name admin-basic-auth
-          kubectl apply -f secrets/admin-basic-auth-sealed.yaml
 
-          cat <<EOF | kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system --format yaml > secrets/cloudflare-api-token-sealed.yaml
-          apiVersion: v1
-          kind: Secret
-          metadata:
-            name: cloudflare-api-token
-            namespace: cert-manager
-          type: Opaque
-          stringData:
-            api-token: dummy-token-for-ci
-          EOF
-          kubectl apply -f secrets/cloudflare-api-token-sealed.yaml
-          echo "::endgroup::"
-
-          echo "::group::Phase 7: Wait for SealedSecrets Unsealing"
-          while read -r ss; do
-            if [ -n "$ss" ]; then
-              ns=$(echo "$ss" | cut -d' ' -f1)
-              name=$(echo "$ss" | cut -d' ' -f2)
-              kubectl wait sealedsecret/$name -n $ns --for=condition=Synced --timeout=180s
-            fi
-          done < <(kubectl get sealedsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null)
-          echo "::endgroup::"
-
-      - name: Deploy applications
+      - name: Deploy Local (Bootstrap & Apps)
         run: |
-          cd infra/apps
-          helmfile --environment minikube apply --suppress-secrets --selector 'name!=cert-manager,name!=sealed-secrets'
-          kubectl wait deployment -n traefik --all --for=condition=Available --timeout=300s
-          kubectl wait certificate/wildcard-minikube -n traefik --for=condition=Ready --timeout=180s
-          echo "✅ All applications deployed"
-
-      - name: Wait for all pods
-        run: |
-          kubectl wait deployment -n traefik --all --for=condition=Available --timeout=300s
-          kubectl wait deployment -n hello --all --for=condition=Available --timeout=300s
-
-      - name: Check for crashloops
-        run: |
-          CRASHED_PODS=$(kubectl get pods -A | grep -v "Completed" | grep -E "CrashLoopBackOff|ImagePullBackOff|ErrImagePull|Error" || true)
-          if [ -n "$CRASHED_PODS" ]; then
-            echo "::error::Found pods in error state:"
-            echo "$CRASHED_PODS"
-            exit 1
-          fi
-          echo "✅ No crashloops found"
+          chmod +x deploy-local.sh
+          ./deploy-local.sh
 
       - name: Run smoke tests
         run: |

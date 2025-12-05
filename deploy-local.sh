@@ -41,6 +41,13 @@ check_prerequisites() {
         exit 1
     fi
 
+    # Check if jq is available
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "❌ jq not found. Please install jq first."
+        echo "   Install with: brew install jq (on macOS) or apt-get install jq (on Linux)"
+        exit 1
+    fi
+
     echo "✅ Prerequisites check passed"
 }
 

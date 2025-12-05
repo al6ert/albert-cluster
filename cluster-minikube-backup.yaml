@@ -1,0 +1,1114 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/sync-wave":"1"},"name":"cluster-minikube","namespace":"argocd"},"spec":{"destination":{"server":"https://kubernetes.default.svc"},"project":"default","source":{"path":"infra/apps","plugin":{"env":[{"name":"HELMFILE_ENVIRONMENT","value":"minikube"},{"name":"TRAEFIK_CHART_VERSION","value":"36.3.0"},{"name":"CERT_MANAGER_CHART_VERSION","value":"v1.18.2"},{"name":"SEALED_SECRETS_CHART_VERSION","value":"2.15.0"},{"name":"HELLO_CHART_VERSION","value":"0.1.0"},{"name":"ARGOCD_CHART_VERSION","value":"8.1.3"}],"name":"helmfile"},"repoURL":"https://github.com/al6ert/albert-cluster.git","targetRevision":"dev"},"syncPolicy":{"automated":{"prune":true,"selfHeal":true},"syncOptions":["CreateNamespace=true","PrunePropagationPolicy=foreground","PruneLast=true"]}}}
+  creationTimestamp: "2025-07-16T08:26:34Z"
+  generation: 1434
+  name: cluster-minikube
+  namespace: argocd
+  resourceVersion: "200254"
+  uid: a7d5abb1-7775-4f09-b0cc-a7e54ff46eb2
+operation:
+  initiatedBy:
+    username: admin
+  retry: {}
+  sync:
+    revision: 433be4b933296d2b3d74537ec4abbbbf044502ee
+    source:
+      path: infra/apps
+      plugin:
+        env:
+        - name: HELMFILE_ENVIRONMENT
+          value: minikube
+        - name: TRAEFIK_CHART_VERSION
+          value: 36.3.0
+        - name: CERT_MANAGER_CHART_VERSION
+          value: v1.18.2
+        - name: SEALED_SECRETS_CHART_VERSION
+          value: 2.15.0
+        - name: HELLO_CHART_VERSION
+          value: 0.1.0
+        - name: ARGOCD_CHART_VERSION
+          value: 8.1.3
+        name: helmfile
+      repoURL: https://github.com/al6ert/albert-cluster.git
+      targetRevision: dev
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    - PruneLast=true
+    syncStrategy:
+      hook: {}
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: infra/apps
+    plugin:
+      env:
+      - name: HELMFILE_ENVIRONMENT
+        value: minikube
+      - name: TRAEFIK_CHART_VERSION
+        value: 36.3.0
+      - name: CERT_MANAGER_CHART_VERSION
+        value: v1.18.2
+      - name: SEALED_SECRETS_CHART_VERSION
+        value: 2.15.0
+      - name: HELLO_CHART_VERSION
+        value: 0.1.0
+      - name: ARGOCD_CHART_VERSION
+        value: 8.1.3
+      name: helmfile
+    repoURL: https://github.com/al6ert/albert-cluster.git
+    targetRevision: dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    - PruneLast=true
+status:
+  controllerNamespace: argocd
+  health:
+    lastTransitionTime: "2025-12-05T18:11:10Z"
+    status: Healthy
+  history:
+  - deployStartedAt: "2025-12-05T09:13:36Z"
+    deployedAt: "2025-12-05T09:14:57Z"
+    id: 0
+    initiatedBy:
+      automated: true
+    revision: 8a1629a8f44bfb0209cdd71d9d6220045cdf12c4
+    source:
+      path: infra/apps
+      plugin:
+        env:
+        - name: HELMFILE_ENVIRONMENT
+          value: minikube
+        - name: TRAEFIK_CHART_VERSION
+          value: 36.3.0
+        - name: CERT_MANAGER_CHART_VERSION
+          value: v1.18.2
+        - name: SEALED_SECRETS_CHART_VERSION
+          value: 2.15.0
+        - name: HELLO_CHART_VERSION
+          value: 0.1.0
+        - name: ARGOCD_CHART_VERSION
+          value: 8.1.3
+        name: helmfile
+      repoURL: https://github.com/al6ert/albert-cluster.git
+      targetRevision: dev
+  operationState:
+    operation:
+      initiatedBy:
+        username: admin
+      retry: {}
+      sync:
+        revision: 433be4b933296d2b3d74537ec4abbbbf044502ee
+        source:
+          path: infra/apps
+          plugin:
+            env:
+            - name: HELMFILE_ENVIRONMENT
+              value: minikube
+            - name: TRAEFIK_CHART_VERSION
+              value: 36.3.0
+            - name: CERT_MANAGER_CHART_VERSION
+              value: v1.18.2
+            - name: SEALED_SECRETS_CHART_VERSION
+              value: 2.15.0
+            - name: HELLO_CHART_VERSION
+              value: 0.1.0
+            - name: ARGOCD_CHART_VERSION
+              value: 8.1.3
+            name: helmfile
+          repoURL: https://github.com/al6ert/albert-cluster.git
+          targetRevision: dev
+        syncOptions:
+        - CreateNamespace=true
+        - PrunePropagationPolicy=foreground
+        - PruneLast=true
+        syncStrategy:
+          hook: {}
+    phase: Running
+    startedAt: "2025-12-05T18:19:50Z"
+  reconciledAt: "2025-12-05T18:18:42Z"
+  resourceHealthSource: appTree
+  resources:
+  - kind: ConfigMap
+    name: argocd-cm
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: argocd-gpg-keys-cm
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: argocd-notifications-cm
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: argocd-rbac-cm
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: argocd-redis-health-configmap
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: argocd-ssh-known-hosts-cm
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: argocd-tls-certs-cm
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: helmfile-plugin-cm
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-grafana
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-grafana-config-dashboards
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-alertmanager-overview
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-apiserver
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-cluster-total
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-controller-manager
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-etcd
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-grafana-datasource
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-grafana-overview
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-k8s-resources-cluster
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-k8s-resources-multicluster
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-k8s-resources-namespace
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-k8s-resources-node
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-k8s-resources-pod
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-k8s-resources-workload
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-k8s-resources-workloads-namespace
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-kubelet
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-namespace-by-pod
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ConfigMap
+    name: prometheus-kube-prometheus-node-cluster-rsrc-use
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Secret
+    name: argocd-notifications-secret
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Secret
+    name: argocd-secret
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Secret
+    name: alertmanager-prometheus-kube-prometheus-alertmanager
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Secret
+    name: prometheus-grafana
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Service
+    name: argocd-applicationset-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Service
+    name: argocd-redis
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Service
+    name: argocd-repo-server
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Service
+    name: argocd-server
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Service
+    name: cert-manager
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Service
+    name: cert-manager-cainjector
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Service
+    name: cert-manager-webhook
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Service
+    name: hello
+    namespace: hello
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Service
+    name: sealed-secrets
+    namespace: kube-system
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Service
+    name: sealed-secrets-metrics
+    namespace: kube-system
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: Service
+    name: traefik
+    namespace: traefik
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: argocd-application-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: argocd-applicationset-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: argocd-notifications-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - hook: true
+    kind: ServiceAccount
+    name: argocd-redis-secret-init
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: argocd-repo-server
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: argocd-server
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: cert-manager
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: cert-manager-cainjector
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: cert-manager-webhook
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: sealed-secrets
+    namespace: kube-system
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: prometheus-grafana
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - hook: true
+    kind: ServiceAccount
+    name: prometheus-kube-prometheus-admission
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: prometheus-kube-prometheus-alertmanager
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: prometheus-kube-prometheus-operator
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: prometheus-kube-prometheus-prometheus
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: prometheus-kube-state-metrics
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: prometheus-prometheus-node-exporter
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - kind: ServiceAccount
+    name: traefik
+    namespace: traefik
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: admissionregistration.k8s.io
+    kind: MutatingWebhookConfiguration
+    name: cert-manager-webhook
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
+    name: cert-manager-webhook
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: argocd-applicationset-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: argocd-notifications-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: argocd-redis
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: argocd-repo-server
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: argocd-server
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: cert-manager
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: cert-manager-cainjector
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: cert-manager-webhook
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: hello
+    namespace: hello
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: sealed-secrets
+    namespace: kube-system
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: traefik
+    namespace: traefik
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: apps
+    kind: StatefulSet
+    name: argocd-application-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: batch
+    hook: true
+    kind: Job
+    name: argocd-redis-secret-init
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: batch
+    hook: true
+    kind: Job
+    name: prometheus-kube-prometheus-admission-create
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: cert-manager.io
+    kind: Certificate
+    name: local-ca
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: cert-manager.io
+    kind: Certificate
+    name: wildcard-minikube
+    namespace: traefik
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: cert-manager.io
+    kind: ClusterIssuer
+    name: local-ca-issuer
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: cert-manager.io
+    kind: ClusterIssuer
+    name: selfsigned
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: networking.k8s.io
+    kind: Ingress
+    name: argocd-server
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: networking.k8s.io
+    kind: IngressClass
+    name: traefik
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: argocd-application-controller
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: argocd-notifications-controller
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: argocd-server
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-cainjector
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-cluster-view
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-controller-approve:cert-manager-io
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-controller-certificates
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-controller-certificatesigningrequests
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-controller-challenges
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-controller-clusterissuers
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-controller-ingress-shim
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-controller-issuers
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-controller-orders
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-edit
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-view
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cert-manager-webhook:subjectaccessreviews
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    hook: true
+    kind: ClusterRole
+    name: prometheus-kube-prometheus-admission
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: secrets-unsealer
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: traefik-traefik
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: argocd-application-controller
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: argocd-notifications-controller
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: argocd-server
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: cert-manager-cainjector
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: cert-manager-controller-approve:cert-manager-io
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: cert-manager-controller-certificates
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: cert-manager-controller-certificatesigningrequests
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: cert-manager-controller-challenges
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: cert-manager-controller-clusterissuers
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: cert-manager-controller-ingress-shim
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: cert-manager-controller-issuers
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: cert-manager-controller-orders
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: cert-manager-webhook:subjectaccessreviews
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    hook: true
+    kind: ClusterRoleBinding
+    name: prometheus-kube-prometheus-admission
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: sealed-secrets
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: traefik-traefik
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: Role
+    name: argocd-application-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: Role
+    name: argocd-applicationset-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: Role
+    name: argocd-notifications-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    hook: true
+    kind: Role
+    name: argocd-redis-secret-init
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: Role
+    name: argocd-repo-server
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: Role
+    name: argocd-server
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: Role
+    name: cert-manager-tokenrequest
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: Role
+    name: cert-manager-webhook:dynamic-serving
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: Role
+    name: cert-manager-cainjector:leaderelection
+    namespace: kube-system
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: Role
+    name: cert-manager:leaderelection
+    namespace: kube-system
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: Role
+    name: sealed-secrets-key-admin
+    namespace: kube-system
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: Role
+    name: sealed-secrets-service-proxier
+    namespace: kube-system
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    hook: true
+    kind: Role
+    name: prometheus-kube-prometheus-admission
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+    name: argocd-application-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+    name: argocd-applicationset-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+    name: argocd-notifications-controller
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    hook: true
+    kind: RoleBinding
+    name: argocd-redis-secret-init
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+    name: argocd-repo-server
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+    name: argocd-server
+    namespace: argocd
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+    name: cert-manager-tokenrequest
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+    name: cert-manager-webhook:dynamic-serving
+    namespace: cert-manager
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+    name: cert-manager-cainjector:leaderelection
+    namespace: kube-system
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+    name: cert-manager:leaderelection
+    namespace: kube-system
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+    name: sealed-secrets-key-admin
+    namespace: kube-system
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: RoleBinding
+    name: sealed-secrets-service-proxier
+    namespace: kube-system
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: rbac.authorization.k8s.io
+    hook: true
+    kind: RoleBinding
+    name: prometheus-kube-prometheus-admission
+    namespace: monitoring
+    requiresPruning: true
+    status: Unknown
+    version: v1
+  - group: traefik.io
+    kind: IngressRoute
+    name: hello
+    namespace: hello
+    requiresPruning: true
+    status: Unknown
+    version: v1alpha1
+  - group: traefik.io
+    kind: IngressRoute
+    name: traefik-dashboard
+    namespace: traefik
+    requiresPruning: true
+    status: Unknown
+    version: v1alpha1
+  - group: traefik.io
+    kind: TLSStore
+    name: default
+    namespace: traefik
+    requiresPruning: true
+    status: Unknown
+    version: v1alpha1
+  sourceHydrator: {}
+  summary:
+    externalURLs:
+    - https://argo.127.0.0.1.nip.io/
+    images:
+    - docker.io/bitnami/sealed-secrets-controller:0.33.1
+    - docker.io/traefik:v3.6.2
+    - ghcr.io/helmfile/helmfile:v1.1.2
+    - hashicorp/http-echo
+    - quay.io/argoproj/argocd:v3.2.1
+    - quay.io/jetstack/cert-manager-cainjector:v1.19.1
+    - quay.io/jetstack/cert-manager-controller:v1.19.1
+    - quay.io/jetstack/cert-manager-webhook:v1.19.1
+    - redis:7.4.1-alpine
+  sync:
+    comparedTo:
+      destination:
+        server: https://kubernetes.default.svc
+      source:
+        path: infra/apps
+        plugin:
+          env:
+          - name: HELMFILE_ENVIRONMENT
+            value: minikube
+          - name: TRAEFIK_CHART_VERSION
+            value: 36.3.0
+          - name: CERT_MANAGER_CHART_VERSION
+            value: v1.18.2
+          - name: SEALED_SECRETS_CHART_VERSION
+            value: 2.15.0
+          - name: HELLO_CHART_VERSION
+            value: 0.1.0
+          - name: ARGOCD_CHART_VERSION
+            value: 8.1.3
+          name: helmfile
+        repoURL: https://github.com/al6ert/albert-cluster.git
+        targetRevision: dev
+    revision: dev
+    status: Unknown

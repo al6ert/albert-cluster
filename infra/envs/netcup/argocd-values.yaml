@@ -1,4 +1,5 @@
 server:
+  # Main Ingress - UI access (through Cloudflare proxy)
   ingress:
     enabled: true
     ingressClassName: traefik
@@ -6,8 +7,17 @@ server:
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
       traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
-    backend:
-      service:
-        name: argocd-server
-        port:
-          number: 80
+    tls: true
+
+  # gRPC Ingress - API/CLI access (bypasses Cloudflare proxy, DNS only)
+  # This is required because Cloudflare Free tier doesn't support gRPC
+  ingressGrpc:
+    enabled: true
+    ingressClassName: traefik
+    hostname: argo-api.albertperez.dev
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      # Enable h2c (HTTP/2 cleartext) for gRPC backend communication
+      traefik.ingress.kubernetes.io/service.serversscheme: h2c
+    tls: true

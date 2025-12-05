@@ -135,23 +135,37 @@ jobs:
 
       - name: ArgoCD diff and sync
         run: |
-          ARGOCD_SERVER="${{ secrets.ARGOCD_SERVER }}"
-          ARGOCD_SERVER="${ARGOCD_SERVER#https://}"
-          ARGOCD_SERVER="${ARGOCD_SERVER#http://}"
+          # Use API hostname for CLI access (bypasses Cloudflare proxy, supports gRPC)
+          # ARGOCD_API_SERVER should point to argo-api.albertperez.dev (DNS only, no CF proxy)
+          ARGOCD_API_SERVER="${{ secrets.ARGOCD_API_SERVER }}"
+          ARGOCD_API_SERVER="${ARGOCD_API_SERVER#https://}"
+          ARGOCD_API_SERVER="${ARGOCD_API_SERVER#http://}"
           
-          echo "::group::Debug Connectivity"
-          curl -I "https://${ARGOCD_SERVER}" || echo "::warning::Failed to connect to ${ARGOCD_SERVER}"
+          echo "::group::Verify API Connectivity"
+          echo "Connecting to ArgoCD API: ${ARGOCD_API_SERVER}"
+          curl -sI "https://${ARGOCD_API_SERVER}" | head -5
           echo "::endgroup::"
 
-          argocd login "${ARGOCD_SERVER}" --username admin --password ${{ secrets.ARGOCD_PASSWORD }} --insecure --grpc-web
+          echo "::group::ArgoCD Login"
+          argocd login "${ARGOCD_API_SERVER}" \
+            --username admin \
+            --password "${{ secrets.ARGOCD_PASSWORD }}" \
+            --grpc-web
+          echo "✅ ArgoCD login successful"
+          echo "::endgroup::"
 
           echo "::group::ArgoCD diff"
           argocd app diff cluster-root --grpc-web || {
-            echo "::warning::ArgoCD diff detected changes, proceeding with sync"
+            echo "::notice::ArgoCD diff detected changes, proceeding with sync"
           }
           echo "::endgroup::"
 
           echo "::group::ArgoCD sync"
-          argocd app sync cluster-root --prune --self-heal
-          argocd app wait cluster-root --health --timeout 300
+          argocd app sync cluster-root --prune --grpc-web
           echo "::endgroup::"
+
+          echo "::group::Wait for health"
+          argocd app wait cluster-root --health --timeout 300 --grpc-web
+          echo "✅ ArgoCD sync completed successfully"
+          echo "::endgroup::"
+

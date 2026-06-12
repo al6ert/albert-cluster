@@ -32,6 +32,11 @@ repoServer:
       env:
         - name: HELMFILE_ENVIRONMENT
           value: {{ .Environment.Name }}
+        # El timeout de exec del CMP aplica al proceso cmp-server de ESTE
+        # sidecar (no al contenedor repo-server); el primer render descarga
+        # todos los charts y supera los 90s por defecto
+        - name: ARGOCD_EXEC_TIMEOUT
+          value: 5m
         - name: HELM_CACHE_HOME
           value: /tmp/helm-cache
         - name: HELM_CONFIG_HOME

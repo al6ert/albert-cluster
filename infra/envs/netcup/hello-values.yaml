@@ -3,14 +3,8 @@
 
 replicaCount: 2
 
-ingress:
-  hosts:
-    - host: hello.albertperez.dev
-
-# Traefik configuration using production wildcard certificate
-traefik:
-  ingressRoute:
-    tlsSecret: wildcard-netcup-tls
+route:
+  hostname: hello.albertperez.dev
 
 app:
   message: "¡Hola desde Netcup!"

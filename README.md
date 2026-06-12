@@ -9,7 +9,10 @@ This project implements a **pure GitOps** approach where:
 - **Helmfile** renders application manifests with environment-specific values
 - **Sealed Secrets** manages sensitive data securely
 - **Cert-manager** provides TLS certificates (self-signed for dev, Let's Encrypt for prod)
-- **Traefik** serves as ingress controller with authentication middleware
+- **Traefik + Gateway API** expose applications: a shared `Gateway` (traefik-gateway)
+  terminates TLS with the per-environment wildcard certificate and apps attach
+  `HTTPRoute`s to it. The Traefik dashboard keeps a native `IngressRoute`
+  (api@internal) and the ArgoCD gRPC API keeps a classic `Ingress` (h2c).
 
 ## 📁 Project Structure
 
@@ -108,7 +111,8 @@ curl -Lo kubeseal https://github.com/bitnami-labs/sealed-secrets/releases/downlo
 
 1. **Start Minikube**:
 ```bash
-minikube start --driver=docker --kubernetes-version=v1.29.2
+source versions.env
+minikube start --driver=docker --kubernetes-version=${KUBERNETES_VERSION}
 ```
 
 2. **Deploy cluster**:
@@ -137,20 +141,17 @@ kubectl get applications -n argocd
 
 ### Production Deployment
 
-1. **Configure secrets**:
+1. **Configure secrets** (con el contexto kubectl apuntando al cluster de producción):
 ```bash
-# Generate secure credentials
-./scripts/generate-credentials.sh --namespace admin --users "admin,ops"
-
-# Configure Cloudflare API token for Let's Encrypt
-kubectl create secret generic cloudflare-api-token \
-  --from-literal=api-token=your-cloudflare-token \
-  --namespace cert-manager
+# Pon los valores reales en .env.local (no versionado):
+#   ADMIN_PASSWORD, GRAFANA_ADMIN_PASSWORD, CLOUDFLARE_API_TOKEN
+./scripts/generate-credentials.sh --component all
+git add infra/bootstrap/secrets/*-sealed.yaml && git commit -m 'chore: rotate sealed secrets'
 ```
 
-2. **Deploy to production**:
+2. **Bootstrap production**:
 ```bash
-./scripts/deploy.sh netcup
+./scripts/bootstrap-prod.sh
 ```
 
 ## 🌍 Environment Configuration
@@ -169,17 +170,30 @@ kubectl create secret generic cloudflare-api-token \
 
 ## 🔐 Security
 
-### Sealed Secrets Management
-```bash
-# Generate new sealed secret
-./scripts/generate-credentials.sh --namespace admin --users "user1,user2"
+### Gestión de secretos (un único mecanismo: SealedSecrets)
 
-# The script will:
-# 1. Generate secure passwords
-# 2. Create bcrypt hashes
-# 3. Seal the secret with kubeseal
-# 4. Save to infra/bootstrap/secrets/
+Todas las credenciales del cluster viven como `SealedSecret` y se generan con
+**un único script**, `scripts/generate-credentials.sh`:
+
+| Componente   | Secret (namespace)                | Consumidor                                  |
+|--------------|-----------------------------------|---------------------------------------------|
+| `basic-auth` | `admin-basic-auth` (admin)        | Middleware basic-auth del dashboard Traefik |
+| `grafana`    | `grafana-admin` (monitoring)      | `grafana.admin.existingSecret`              |
+| `cloudflare` | `cloudflare-api-token` (cert-manager) | ClusterIssuer letsencrypt-prod (DNS-01) |
+
+```bash
+# Passwords fijos (opcional) en .env.local: ADMIN_PASSWORD, GRAFANA_ADMIN_PASSWORD,
+# CLOUDFLARE_API_TOKEN. Sin ellos se generan aleatorios (cloudflare exige token real).
+./scripts/generate-credentials.sh --component all   # o basic-auth|grafana|cloudflare
 ```
+
+Reglas:
+- Los `*-sealed.yaml` de `infra/bootstrap/secrets/` **sí se commitean** (solo el
+  cluster contra el que se sellaron puede dessellarlos).
+- En local/CI los secretos se regeneran al vuelo con valores dummy
+  (`deploy-local.sh` y dev-ci lo hacen automáticamente; Grafana local: admin/admin).
+- El password de admin de ArgoCD lo genera el propio chart:
+  `kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}' | base64 -d`
 
 ### Certificate Management
 - **Local**: Self-signed wildcard certificates
@@ -229,16 +243,20 @@ kubectl create secret generic cloudflare-api-token \
 1. **Create Helmfile** in `infra/apps/new-app/`
 2. **Add to root Helmfile** in `infra/apps/helmfile.yaml`
 3. **Create environment values** in `infra/envs/*/new-app-values.yaml`
-4. **Use global values** for consistency:
+4. **Expose it through the shared Gateway** with an `HTTPRoute` (el hostname es
+   el único valor por entorno; el TLS lo termina el Gateway):
 ```yaml
-# Use network.domain for hostnames
-ingress:
-  hosts:
-    - host: myapp.{{ .Values.network.domain }}
-
-# Use environment.name for environment-specific config
-app:
-  message: "Running in {{ .Values.environment.name }}"
+# infra/envs/<entorno>/new-app-values.yaml
+route:
+  hostname: myapp.albertperez.dev   # o myapp.127.0.0.1.nip.io en minikube
+```
+```yaml
+# HTTPRoute (en el chart o via extraObjects/extraManifests del chart upstream)
+spec:
+  parentRefs:
+    - name: traefik-gateway
+      namespace: traefik
+      sectionName: websecure
 ```
 
 ## 📊 Monitoring & Debugging

@@ -56,7 +56,7 @@ wait_for_crds() {
     echo "⏳ Waiting for CRDs to be established (timeout: ${timeout}s)..."
 
     # Get all CRDs we expect to be present
-    local expected_crds="cert-manager.io traefik.io acme.cert-manager.io bitnami.com argoproj.io"
+    local expected_crds="cert-manager.io traefik.io acme.cert-manager.io bitnami.com argoproj.io gateway.networking.k8s.io monitoring.coreos.com"
 
     for pattern in $expected_crds; do
         echo "  - Waiting for $pattern CRDs..."
@@ -76,6 +76,7 @@ wait_for_sealed_secrets() {
     local sealed_secrets=(
         "admin-basic-auth:admin"
         "cloudflare-api-token:cert-manager"
+        "grafana-admin:monitoring"
     )
 
     for item in "${sealed_secrets[@]}"; do
@@ -84,11 +85,21 @@ wait_for_sealed_secrets() {
         echo "  - Waiting for $secret_name in namespace $ns..."
 
         # Wait for Secret to exist and have data
-        kubectl wait secret/"$secret_name" -n "$ns" --for=jsonpath='{.data}'=non-empty --timeout=120s || {
+        # (kubectl wait --for=jsonpath no sirve aquí: .data es un mapa y nunca
+        # sería igual al literal "non-empty")
+        local unsealed=false
+        for _ in $(seq 1 60); do
+            if [ -n "$(kubectl get secret "$secret_name" -n "$ns" -o jsonpath='{.data}' 2>/dev/null)" ]; then
+                unsealed=true
+                break
+            fi
+            sleep 2
+        done
+        if [ "$unsealed" != "true" ]; then
             echo "    ⚠️ Secret $secret_name not unsealed within timeout"
             # Debug: Check logs
-            kubectl logs -n kube-system -l name=sealed-secrets-controller | grep "$secret_name" || echo "No logs found for $secret_name"
-        }
+            kubectl logs -n kube-system -l app.kubernetes.io/name=sealed-secrets --tail=50 | grep "$secret_name" || echo "No logs found for $secret_name"
+        fi
     done
 
     echo "✅ SealedSecrets processing completed"
@@ -100,7 +111,7 @@ apply_bootstrap() {
 
     echo "::group::Phase 1: Namespaces, CRDs, and RBAC"
     kubectl apply -k namespaces/
-    kubectl apply -k crds/ --validate=false
+    kubectl apply --server-side --force-conflicts -k crds/
     kubectl apply -f rbac/gh-actions.yaml
     echo "::endgroup::"
 
@@ -125,10 +136,19 @@ apply_bootstrap() {
     echo "::endgroup::"
 
     echo "::group::Phase 2.6: Generate and apply fresh SealedSecrets"
+    # Sellados locales a un dir temporal para NO pisar los *-sealed.yaml del
+    # repo (que están sellados contra el cluster de producción)
+    LOCAL_SECRETS_DIR=$(mktemp -d)
+
     # Generate admin-basic-auth using the script (defaults: namespace=admin, users=admin)
-    bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --namespace admin --users admin --secret-name admin-basic-auth
-    # Apply the freshly generated sealed secret
-    kubectl apply -f "${SCRIPT_DIR}/infra/bootstrap/secrets/admin-basic-auth-sealed.yaml"
+    SECRETS_DIR="$LOCAL_SECRETS_DIR" \
+        bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --component basic-auth --namespace admin --users admin --secret-name admin-basic-auth
+    kubectl apply -f "${LOCAL_SECRETS_DIR}/admin-basic-auth-sealed.yaml"
+
+    # Grafana admin (admin/admin para desarrollo local, salvo override en .env.local)
+    SECRETS_DIR="$LOCAL_SECRETS_DIR" GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-admin}" \
+        bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --component grafana
+    kubectl apply -f "${LOCAL_SECRETS_DIR}/grafana-admin-sealed.yaml"
 
     # Generate cloudflare-api-token with dummy for local
     echo "Generating dummy Cloudflare API token secret for local..."
@@ -163,6 +183,33 @@ EOF
     echo "✅ Bootstrap phase completed"
 }
 
+# Los Services LoadBalancer (Traefik) necesitan una IP; sin ella helm --wait
+# se bloquea hasta timeout. En vez de depender de `minikube tunnel` (requiere
+# sudo interactivo), habilitamos el addon metallb con un rango de la red de
+# minikube (idempotente).
+ensure_loadbalancer() {
+    if ! minikube addons list | grep -q "metallb: enabled"; then
+        echo "🔌 Enabling metallb addon for LoadBalancer support..."
+        minikube addons enable metallb
+    fi
+    local prefix
+    prefix=$(minikube ip | cut -d. -f1-3)
+    cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config
+  namespace: metallb-system
+data:
+  config: |
+    address-pools:
+      - name: default
+        protocol: layer2
+        addresses:
+          - ${prefix}.100-${prefix}.120
+EOF
+}
+
 deploy_applications() {
     echo "🚀 Deploying applications with Helmfile..."
     cd "${SCRIPT_DIR}/infra/apps"
@@ -173,6 +220,7 @@ deploy_applications() {
     export SEALED_SECRETS_CHART_VERSION
     export HELLO_CHART_VERSION
     export ARGOCD_CHART_VERSION
+    export PROMETHEUS_CHART_VERSION
 
     # Apply applications idempotently (excluding SealedSecrets as it's already installed in bootstrap)
     helmfile --environment minikube apply --suppress-secrets --selector 'name!=sealed-secrets'
@@ -225,6 +273,7 @@ show_status() {
 main() {
     check_prerequisites
     apply_bootstrap
+    ensure_loadbalancer
     deploy_applications
     show_status
 

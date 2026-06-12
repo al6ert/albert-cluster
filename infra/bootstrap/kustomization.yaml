@@ -9,6 +9,8 @@ resources:
   # SealedSecrets y Middlewares (fase 1)
   - secrets/
   - middlewares/
-  # ArgoCD Applications (fase 2)
-  - argocd-root.yaml
-  - argocd-minikube.yaml
+
+# Las Applications raíz de ArgoCD son específicas de cada entorno y se aplican
+# por separado (nunca las dos en el mismo cluster):
+#   - argocd-root.yaml     -> producción (scripts/bootstrap-prod.sh)
+#   - argocd-minikube.yaml -> local/CI   (deploy-local.sh, dev-ci)

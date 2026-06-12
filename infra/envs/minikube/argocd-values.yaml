@@ -1,13 +1,6 @@
-server:
-  ingress:
-    enabled: true
-    hostname: argo.127.0.0.1.nip.io
-    annotations:
-      cert-manager.io/cluster-issuer: local-ca-issuer
-    backend:
-      service:
-        port:
-          number: 80
+# NOTA: no definir extraObjects aquí — vive completo (ConfigMap del plugin +
+# HTTPRoute) en infra/apps/argocd/values-helmfile.yaml.gotmpl, porque Helm
+# reemplaza las listas enteras al fusionar values.
 
 controller:
   resources:
@@ -18,11 +11,9 @@ controller:
       cpu: 500m
       memory: 512Mi
 
-redis:
-  image:
-    repository: redis
-    tag: 7.4.1-alpine
-
+# El contenedor del plugin helmfile (extraContainers) se define una sola vez en
+# infra/apps/argocd/values-helmfile.yaml.gotmpl; no duplicarlo aquí (las listas
+# de Helm se reemplazan enteras, no se fusionan).
 repoServer:
   resources:
     limits:
@@ -31,36 +22,3 @@ repoServer:
     requests:
       cpu: 200m
       memory: 256Mi
-  extraContainers:
-    - name: helmfile
-      image: ghcr.io/helmfile/helmfile:v1.1.2
-      command: ["/var/run/argocd/argocd-cmp-server"]
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 999
-      env:
-        - name: HELMFILE_ENVIRONMENT
-          value: minikube
-        - name: HELM_CACHE_HOME
-          value: /tmp/helm-cache
-        - name: HELM_CONFIG_HOME
-          value: /tmp/helm-config
-        - name: HELM_DATA_HOME
-          value: /tmp/helm-data
-      volumeMounts:
-        - mountPath: /var/run/argocd
-          name: var-files
-        - mountPath: /home/argocd/cmp-server/plugins
-          name: plugins
-        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
-          subPath: plugin.yaml
-          name: helmfile-plugin-cm
-        - mountPath: /tmp
-          name: cmp-tmp
-      resources:
-        limits:
-          cpu: 500m
-          memory: 512Mi
-        requests:
-          cpu: 100m
-          memory: 128Mi

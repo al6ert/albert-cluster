@@ -54,7 +54,6 @@ rules:
 
 ignore: |
   infra/rendered/
-  infra/bootstrap/argocd.yaml
   infra/bootstrap/crds/
   infra/charts/hello/templates/
   infra/bootstrap/secrets/

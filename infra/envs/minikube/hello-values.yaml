@@ -3,14 +3,8 @@
 
 replicaCount: 1
 
-ingress:
-  hosts:
-    - host: hello.127.0.0.1.nip.io
-
-# Traefik configuration using wildcard certificate
-traefik:
-  ingressRoute:
-    tlsSecret: wildcard-minikube-tls
+route:
+  hostname: hello.127.0.0.1.nip.io
 
 app:
   message: "¡Hola desde Minikube!"

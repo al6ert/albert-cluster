@@ -1,161 +1,39 @@
-# Aplicaciones ArgoCD
+# infra/apps — Aplicaciones gestionadas con Helmfile
 
-Este directorio contiene las aplicaciones de ArgoCD que gestionan el despliegue de los componentes del cluster.
-
-## Estructura Optimizada
+`helmfile.yaml` es el punto de entrada: define los entornos (`minikube`,
+`netcup`) e incluye un sub-helmfile por aplicación. El orden de inclusión
+define el orden de despliegue.
 
 ```
-infra/apps/
-├── base/
-│   ├── kustomization.yaml         # Base (netcup/producción)
-│   ├── traefik/
-│   │   ├── argocd-application.yaml
-│   │   └── ingressroutes.yaml     # IngressRoutes consolidados
-│   └── hello/
-│       └── argocd-application.yaml
-└── overlays/
-    └── minikube/
-        ├── kustomization.yaml     # Overlay para minikube
-        ├── patches-traefik.yaml   # Patch para traefik
-        ├── patches-hello.yaml     # Patch para hello
-        └── patches-traefik-dashboard.yaml # Patch para IngressRoutes
+helmfile.yaml                 # raíz: entornos + orden
+├── cert-manager/             # wave 0 — TLS (CRDs en infra/bootstrap/crds)
+├── sealed-secrets/           # wave 0 — controller de secretos
+├── traefik/                  # wave 1 — Gateway API (traefik-gateway) + dashboard
+├── argocd/                   # wave 2 — GitOps + plugin helmfile
+├── hello/                    # wave 3 — app de ejemplo (chart local)
+└── prometheus/               # wave 3 — kube-prometheus-stack
 ```
 
-## Gestión de Entornos
+Cada app sigue el mismo patrón:
 
-### Enfoque Kustomize con Overlays
+- `<app>/helmfile.yaml.gotmpl` — release con la versión pineada vía
+  `{{ env "<APP>_CHART_VERSION" }}` (fuente de verdad: `versions.env`; en
+  ArgoCD las inyecta el plugin desde `infra/bootstrap/argocd-*.yaml`).
+- `<app>/values.yaml` — valores base comunes a todos los entornos.
+- `../envs/<entorno>/<app>-values.yaml` — overrides por entorno (hostnames,
+  certificados wildcard, recursos, réplicas).
 
-Utilizamos **Kustomize** para manejar las diferencias entre entornos de manera elegante:
+## Exposición de servicios
 
-- **Una sola ArgoCD Application** por componente
-- **Base** para producción (netcup)
-- **Overlay** para minikube (desarrollo)
-- **Valores de Helm** separados en `infra/envs/`
-- **IngressRoutes consolidados** en un solo archivo
+Las apps se exponen con **Gateway API**: `HTTPRoute` → `traefik-gateway`
+(namespace `traefik`, listener `websecure` con el certificado wildcard del
+entorno). Excepciones deliberadas: el dashboard de Traefik (`IngressRoute`
+hacia `api@internal`) y la API gRPC de ArgoCD en producción (`Ingress` con
+scheme h2c).
 
-### Dos Formas de Deploy en Local
-
-#### 1. Helmfile (Desarrollo Rápido)
-```bash
-# Deploy completo con Helmfile
-helmfile -f infra/apps/helmfile.yaml apply
-
-# Deploy específico
-helmfile -f infra/apps/helmfile.yaml apply --selector name=traefik
-helmfile -f infra/apps/helmfile.yaml apply --selector name=hello
-```
-
-#### 2. ArgoCD + Kustomize (Pruebas de GitOps)
-```bash
-# Deploy completo con Kustomize
-kustomize build infra/apps/overlays/minikube | kubectl apply -f -
-
-# O usando el script
-./scripts/deploy.sh minikube
-```
-
-### Entornos Soportados
-
-#### Minikube (Desarrollo Local)
-```bash
-# Deploy usando Kustomize
-kustomize build infra/apps/overlays/minikube | kubectl apply -f -
-
-# O usando el script
-./scripts/deploy.sh minikube
-```
-
-**Configuración:**
-- Dominio: `127.0.0.1.nip.io`
-- Sin TLS
-- Configuración ligera
-
-#### Netcup (Producción)
-```bash
-# Deploy usando Kustomize
-kubectl apply -k infra/apps/base/
-
-# O usando el script
-./scripts/deploy.sh netcup
-```
-
-**Configuración:**
-- Dominio: `albertperez.dev`
-- TLS con Let's Encrypt
-- Configuración completa
-
-## Patches de Kustomize
-
-### Minikube (`overlays/minikube/patches-traefik.yaml`)
-
-```yaml
-- op: replace
-  path: /spec/source/helm/valueFiles/1
-  value: ../../../envs/minikube/traefik-values.yaml
-- op: replace
-  path: /spec/source/helm/extraObjects/0/spec/routes/0/match
-  value: Host(`traefik.127.0.0.1.nip.io`)
-- op: replace
-  path: /spec/source/helm/extraObjects/0/spec/entryPoints
-  value:
-    - web
-    - websecure
-```
-
-### Minikube (`overlays/minikube/patches-hello.yaml`)
-
-```yaml
-- op: replace
-  path: /spec/source/helm/valueFiles/1
-  value: ../../../envs/minikube/hello-values.yaml
-```
-
-### Netcup (`base/kustomization.yaml`)
-
-No requiere patches ya que las ArgoCD Applications están configuradas por defecto para producción.
-
-## Ventajas de este Enfoque
-
-1. **DRY (Don't Repeat Yourself)**: Una sola ArgoCD Application por componente
-2. **Mantenibilidad**: Cambios centralizados en un lugar
-3. **Flexibilidad**: Fácil agregar nuevos entornos
-4. **Consistencia**: Misma estructura para todos los entornos
-5. **Claridad**: Separación clara entre configuración base y específica
-6. **Simplicidad**: Estructura estándar de Kustomize
-
-## Comandos Útiles
+## Render local
 
 ```bash
-# Ver estado de las aplicaciones
-kubectl get applications -n argocd
-
-# Ver logs de Traefik
-kubectl logs -n traefik -l app.kubernetes.io/name=traefik
-
-# Verificar sincronización
-kubectl describe application traefik -n argocd
-
-# Aplicar cambios
-kustomize build infra/apps/overlays/minikube | kubectl apply -f -
-```
-
-## Troubleshooting
-
-### Problemas Comunes
-
-1. **Aplicación no sincroniza**: Verificar que ArgoCD esté funcionando
-2. **Valores no se aplican**: Verificar paths en valueFiles
-3. **Dominios no resuelven**: Verificar configuración DNS
-
-### Logs Útiles
-
-```bash
-# Logs de ArgoCD
-kubectl logs -n argocd -l app.kubernetes.io/name=argocd-server
-
-# Logs de Traefik
-kubectl logs -n traefik -l app.kubernetes.io/name=traefik
-
-# Estado de las aplicaciones
-kubectl get applications -n argocd -o yaml
+source ../../versions.env
+helmfile --environment minikube template   # o netcup
 ```

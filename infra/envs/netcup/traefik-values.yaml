@@ -1,13 +1,6 @@
 # infra/envs/netcup/traefik-values.yaml
 # Environment-specific values for production (netcup)
 
-# Inherit from global values
-network:
-  domain: "albertperez.dev"
-
-global:
-  domain: "albertperez.dev"
-
 ingressRoute:
   dashboard:
     matchRule: >
@@ -23,6 +16,7 @@ extraObjects:
     kind: Certificate
     metadata:
       name: wildcard-netcup
+      namespace: traefik
     spec:
       secretName: wildcard-netcup-tls
       dnsNames:
@@ -30,6 +24,18 @@ extraObjects:
       issuerRef:
         name: letsencrypt-prod
         kind: ClusterIssuer
+
+# Listener HTTPS del Gateway con el certificado wildcard de producción
+gateway:
+  listeners:
+    websecure:
+      port: 8443
+      protocol: HTTPS
+      mode: Terminate
+      namespacePolicy:
+        from: All
+      certificateRefs:
+        - name: wildcard-netcup-tls
 
 tlsStore:
   default:

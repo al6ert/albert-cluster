@@ -21,10 +21,10 @@ echo "📦 Applying bootstrap manifests..."
 cd "${SCRIPT_DIR}/../infra/bootstrap"
 
 echo "  - Applying CRDs..."
-kubectl apply -k crds/ --validate=false
+kubectl apply --server-side --force-conflicts -k crds/
 
 echo "  - Waiting for CRDs..."
-kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | \
+kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io|gateway.networking.k8s.io|monitoring.coreos.com' | \
   xargs kubectl wait --for=condition=Established --timeout=180s
 
 echo "  - Applying Namespaces, RBAC, Middlewares..."
@@ -64,21 +64,32 @@ helmfile --environment netcup --selector name=argocd apply --suppress-secrets
 echo "  - Waiting for ArgoCD..."
 kubectl wait deployment -n argocd --all --for=condition=Available --timeout=300s
 
-# 4. Apply Secrets (if any exist in bootstrap/secrets)
+# 4. Apply Secrets (todos los *-sealed.yaml presentes en bootstrap/secrets)
 echo "🔐 Applying Sealed Secrets..."
 cd "${SCRIPT_DIR}/../infra/bootstrap"
-if [ -d "secrets" ]; then
-    if [ -f "secrets/kustomization.yaml" ]; then
-        kubectl apply -k secrets/
-    else
-        kubectl apply -f secrets/
-    fi
-fi
+for sealed in secrets/*-sealed.yaml; do
+    [ -e "$sealed" ] || continue
+    kubectl apply -f "$sealed"
+done
 
-# 5. Final Status
+# Los SealedSecrets solo se dessellan en el cluster contra el que se generaron.
+# Si falta alguno, genéralo con el contexto kubectl apuntando a ESTE cluster:
+#   ./scripts/generate-credentials.sh --component all
+for required in grafana-admin-sealed.yaml admin-basic-auth-sealed.yaml cloudflare-api-token-sealed.yaml; do
+    if [ ! -f "secrets/${required}" ]; then
+        echo "⚠️  Falta secrets/${required}; genera con: ./scripts/generate-credentials.sh --component all"
+    fi
+done
+
+# 5. Create the root ArgoCD Application (GitOps entry point for netcup)
+echo "🎯 Applying root ArgoCD Application (cluster-root)..."
+kubectl apply -f argocd-root.yaml
+
+# 6. Final Status
 echo ""
 echo "✅ Bootstrap completed successfully!"
 echo "ArgoCD should now be running. You can verify with:"
 echo "  kubectl get pods -n argocd"
+echo "  kubectl get application cluster-root -n argocd"
 echo ""
 echo "The CI pipeline should now be able to connect and sync."

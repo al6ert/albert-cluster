@@ -20,33 +20,27 @@ service:
   port: 80
   targetPort: 5678
 
-ingress:
+# Contexto de seguridad del contenedor (http-echo es un binario estático que
+# escucha en un puerto no privilegiado, puede correr como usuario arbitrario)
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
+
+# Exposición vía Gateway API (HTTPRoute). El TLS se termina en el listener
+# del Gateway, así que aquí solo se declara el hostname.
+route:
   enabled: true
-  className: ""
-  annotations: {}
-  hosts:
-    - host: hello.127.0.0.1.nip.io
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: hello-tls
-      hosts:
-        - hello.127.0.0.1.nip.io
-
-# Traefik IngressRoute configuration
-traefik:
-  ingressRoute:
-    enabled: true
-    entryPoints:
-      - websecure
-    # certResolver: letsencrypt-prod  # Para usar ACME/Let's Encrypt
-    # tlsSecret: wildcard-minikube-tls  # Para usar certificado existente
-
-  httpIngressRoute:
-    enabled: false
-    entryPoints:
-      - web
+  hostname: hello.127.0.0.1.nip.io
+  gateway:
+    name: traefik-gateway
+    namespace: traefik
+    sectionName: websecure
 
 # Application specific settings
 app:

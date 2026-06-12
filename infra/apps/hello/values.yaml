@@ -1,5 +1,7 @@
 # infra/apps/hello/values.yaml
-# Valores base para la aplicación hello
+# Valores base para la aplicación hello.
+# El host y el certificado TLS son específicos de cada entorno y se definen
+# en infra/envs/<entorno>/hello-values.yaml.
 
 replicaCount: 1
 
@@ -12,21 +14,6 @@ service:
   type: ClusterIP
   port: 80
   targetPort: 5678
-
-ingress:
-  enabled: true
-  className: traefik
-  hosts:
-    - host: hello.{{ .Environment.Values.network.domain }}
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: wildcard-minikube-tls
-      hosts:
-        - hello.{{ .Environment.Values.network.domain }}
-  entryPoints:
-    - websecure
 
 app:
   message: "¡Hola desde el cluster!"

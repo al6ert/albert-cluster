@@ -1,30 +1,27 @@
 # infra/envs/minikube/prometheus-values.yaml
 # https://github.com/prometheus-community/helm-charts/blob/main/charts/kube-prometheus-stack/values.yaml
-
-# Deshabilitar Ingress por defecto en Dev/Minikube para no saturar 
-# o configurar Ingress si se desea acceder vía URL.
-# Para dev, port-forward suele ser suficiente, pero podemos habilitar ingress básico.
+#
+# Exposición vía Gateway API: route.main (nativo) para prometheus/alertmanager
+# y HTTPRoute en extraManifests para grafana. TLS termina en el Gateway.
 
 grafana:
   enabled: true
-  adminPassword: "admin" # Simple password for dev
-  ingress:
-    enabled: true
-    ingressClassName: traefik
-    hosts:
-      - grafana.127.0.0.1.nip.io
-    path: /
+  # Credenciales en el Secret grafana-admin (SealedSecret); ver
+  # scripts/generate-credentials.sh y docs/README "Gestión de secretos".
+  admin:
+    existingSecret: grafana-admin
 
 prometheus:
   enabled: true
-  ingress:
-    enabled: true
-    ingressClassName: traefik
-    hosts:
-      - prometheus.127.0.0.1.nip.io
-    paths:
-      - /
-    pathType: Prefix
+  route:
+    main:
+      enabled: true
+      hostnames:
+        - prometheus.127.0.0.1.nip.io
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+          sectionName: websecure
   prometheusSpec:
     # Reducir retención y recursos para dev
     retention: 2d
@@ -38,12 +35,15 @@ prometheus:
 
 alertmanager:
   enabled: true
-  ingress:
-    enabled: true
-    ingressClassName: traefik
-    hosts:
-      - alertmanager.127.0.0.1.nip.io
-    path: /
+  route:
+    main:
+      enabled: true
+      hostnames:
+        - alertmanager.127.0.0.1.nip.io
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+          sectionName: websecure
 
 prometheusOperator:
   resources:
@@ -53,3 +53,22 @@ prometheusOperator:
     requests:
       cpu: 100m
       memory: 100Mi
+
+extraManifests:
+  # El subchart de grafana no soporta route nativo; HTTPRoute manual
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: grafana
+      namespace: monitoring
+    spec:
+      parentRefs:
+        - name: traefik-gateway
+          namespace: traefik
+          sectionName: websecure
+      hostnames:
+        - grafana.127.0.0.1.nip.io
+      rules:
+        - backendRefs:
+            - name: prometheus-grafana
+              port: 80

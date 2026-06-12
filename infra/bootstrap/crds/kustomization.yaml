@@ -1,8 +1,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+
+# Los CRDs se instalan desactivados en los charts (crds.enabled=false) y se
+# gestionan aquí para controlar su ciclo de vida. Versiones en versions.env.
 resources:
+  - gateway-api-crds.yaml
   - traefik-crds.yaml
   - prometheus-crds.yaml
   - cert-manager-CRDs.yaml
   - sealed-secrets-crd.yaml
-  - argocd-application-crd.yaml
+  - argocd-crds.yaml

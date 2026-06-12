@@ -5,10 +5,13 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   destination:
     server: https://kubernetes.default.svc
+    namespace: argocd
   source:
     repoURL: https://github.com/al6ert/albert-cluster.git
     targetRevision: dev
@@ -19,17 +22,17 @@ spec:
         - name: HELMFILE_ENVIRONMENT
           value: minikube
         - name: TRAEFIK_CHART_VERSION
-          value: "36.3.0"
+          value: "40.3.0"
         - name: CERT_MANAGER_CHART_VERSION
-          value: "v1.18.2"
+          value: "v1.20.2"
         - name: SEALED_SECRETS_CHART_VERSION
-          value: "2.15.0"
+          value: "2.18.6"
         - name: HELLO_CHART_VERSION
-          value: "0.1.0"
+          value: "0.2.0"
         - name: ARGOCD_CHART_VERSION
-          value: "8.1.3"
+          value: "9.5.21"
         - name: PROMETHEUS_CHART_VERSION
-          value: "79.11.0"
+          value: "86.2.2"
   syncPolicy:
     automated:
       prune: true

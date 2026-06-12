@@ -1,21 +1,20 @@
+# Los CRDs se instalan por separado en infra/bootstrap/crds/
+# (la clave correcta en el chart argo-cd es crds.install, no crds.enabled)
 crds:
-  enabled: false
+  install: false
 
 server:
-  ingress:
-    enabled: true
-    ingressClassName: traefik
-    hostname: argo.{{ .Values.domain }}
-    path: /
-    pathType: Prefix
-    annotations:
-      traefik.ingress.kubernetes.io/router.entrypoints: websecure
-      cert-manager.io/cluster-issuer: letsencrypt-prod
-    tls: true
   service:
     type: ClusterIP
+  # Necesario: configs.params.create=false (values-helmfile.yaml.gotmpl) hace
+  # que argocd-cmd-params-cm no exista, así que server.insecure de ahí no
+  # aplica; este flag es lo único que pone el server en modo insecure para que
+  # el Gateway/Traefik termine TLS.
   extraArgs:
     - --insecure
+
+# La UI se expone vía Gateway API (HTTPRoute en extraObjects de
+# infra/envs/<entorno>/argocd-values.yaml); el chart no crea Ingress.
 
 dex:
   enabled: false  # Deshabilita Dex (deprecated, no necesario para tu auth básica)

@@ -62,7 +62,7 @@ jobs:
           driver: docker
           cache: true
           minikube-version: latest
-          kubernetes-version: v1.30.2
+          kubernetes-version: v1.33.1
           cpus: 4
           memory: 12288mb
           wait: all
@@ -155,9 +155,15 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::ArgoCD diff"
-          argocd app diff cluster-root --grpc-web || {
+          # exit 0 = sin cambios, 1 = hay diff (esperado), otro = error real
+          diff_status=0
+          argocd app diff cluster-root --grpc-web || diff_status=$?
+          if [ "$diff_status" -eq 1 ]; then
             echo "::notice::ArgoCD diff detected changes, proceeding with sync"
-          }
+          elif [ "$diff_status" -ne 0 ]; then
+            echo "::error::ArgoCD diff failed with status $diff_status"
+            exit "$diff_status"
+          fi
           echo "::endgroup::"
 
           echo "::group::ArgoCD sync"

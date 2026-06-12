@@ -1,12 +1,30 @@
 #!/bin/bash
 set -euo pipefail
 
-# scripts/generate-credentials.sh - Generate secure credentials for basic auth
-# Usage: ./scripts/generate-credentials.sh [--namespace NAMESPACE] [--users "user1,user2"]
+# scripts/generate-credentials.sh - Punto único de generación de credenciales.
+# Genera Secrets y los sella con kubeseal contra el cluster del contexto kubectl
+# actual (los SealedSecrets solo se pueden dessellar en ese cluster).
+#
+# Usage:
+#   ./scripts/generate-credentials.sh [--component basic-auth|grafana|cloudflare|all] [opciones]
+#
+# Componentes:
+#   basic-auth  htpasswd para el dashboard de Traefik (default; namespace admin)
+#   grafana     credenciales admin de Grafana (Secret grafana-admin, namespace monitoring)
+#   cloudflare  token de API de Cloudflare para cert-manager (requiere CLOUDFLARE_API_TOKEN)
+#   all         los tres anteriores
+#
+# Passwords fijos via .env.local (no versionado): ADMIN_PASSWORD, ARGO_PASSWORD,
+# GRAFANA_ADMIN_PASSWORD, CLOUDFLARE_API_TOKEN. Sin ellos se generan aleatorios
+# (excepto cloudflare, que exige token real).
 
 # Source versions from centralized file
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../versions.env"
+
+# Por defecto escribe en el repo (para sellar contra prod y commitear);
+# deploy-local.sh lo redirige a un dir temporal para no pisar los sellados de prod.
+SECRETS_DIR="${SECRETS_DIR:-${SCRIPT_DIR}/../infra/bootstrap/secrets}"
 
 # Cargar passwords fijos desde .env.local si existe
 ENV_LOCAL_FILE="${SCRIPT_DIR}/../.env.local"
@@ -18,6 +36,7 @@ if [ -f "$ENV_LOCAL_FILE" ]; then
 fi
 
 # Default values (can be overridden)
+COMPONENT="${COMPONENT:-basic-auth}"
 NAMESPACE="${NAMESPACE:-admin}"
 USERS="${USERS:-admin,argo}"
 SECRET_NAME="${SECRET_NAME:-admin-basic-auth}"
@@ -26,6 +45,10 @@ BCRYPT_ROUNDS="${BCRYPT_ROUNDS:-12}"
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --component)
+            COMPONENT="$2"
+            shift 2
+            ;;
         --namespace)
             NAMESPACE="$2"
             shift 2
@@ -39,15 +62,12 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "Usage: $0 [--namespace NAMESPACE] [--users \"user1,user2\"] [--secret-name NAME]"
+            echo "Usage: $0 [--component basic-auth|grafana|cloudflare|all] [--namespace NS] [--users \"u1,u2\"] [--secret-name NAME]"
             echo ""
-            echo "Options:"
-            echo "  --namespace    Target namespace (default: admin)"
-            echo "  --users        Comma-separated users (default: admin,argo)"
-            echo "  --secret-name  Secret name (default: admin-basic-auth)"
-            echo ""
-            echo "Environment variables:"
-            echo "  NAMESPACE, USERS, SECRET_NAME, BCRYPT_ROUNDS"
+            echo "Environment variables (.env.local):"
+            echo "  ADMIN_PASSWORD, ARGO_PASSWORD        basic-auth"
+            echo "  GRAFANA_ADMIN_PASSWORD               grafana"
+            echo "  CLOUDFLARE_API_TOKEN                 cloudflare (obligatoria)"
             exit 0
             ;;
         *)
@@ -57,14 +77,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo "🔐 Generating secure credentials for basic authentication..."
-echo "📋 Configuration:"
-echo "   Namespace: $NAMESPACE"
-echo "   Users: $USERS"
-echo "   Secret name: $SECRET_NAME"
-echo "   BCrypt rounds: $BCRYPT_ROUNDS"
-echo ""
-
 # Check prerequisites
 check_prerequisites() {
     if ! command -v openssl >/dev/null 2>&1; then
@@ -72,7 +84,7 @@ check_prerequisites() {
         exit 1
     fi
 
-    if ! command -v htpasswd >/dev/null 2>&1; then
+    if [[ "$COMPONENT" == "basic-auth" || "$COMPONENT" == "all" ]] && ! command -v htpasswd >/dev/null 2>&1; then
         echo "❌ htpasswd not found. Please install apache2-utils."
         exit 1
     fi
@@ -89,18 +101,25 @@ check_prerequisites() {
 setup_temp_dir() {
     TMP_DIR=$(mktemp -d)
     trap "rm -rf '$TMP_DIR'" EXIT
-    echo "📁 Using temporary directory: $TMP_DIR"
 }
 
-# Generate passwords and htpasswd file
-generate_credentials() {
-    echo "📝 Generating secure passwords..."
+# Sella un Secret (stdin: ruta a yaml; stdout: fichero sellado en SECRETS_DIR)
+seal_secret_file() {
+    local secret_file="$1"
+    local sealed_file="$2"
+    mkdir -p "$SECRETS_DIR"
+    kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system \
+        --format yaml < "$secret_file" > "$sealed_file"
+    echo "✅ SealedSecret created at $sealed_file"
+}
 
-    # Create htpasswd file
+# --- basic-auth (dashboard de Traefik) -------------------------------------
+generate_basic_auth() {
+    echo "🔐 [basic-auth] Generating htpasswd credentials (ns=$NAMESPACE, users=$USERS)..."
+
     local htpasswd_file="$TMP_DIR/users.htpasswd"
     rm -f "$htpasswd_file"
 
-    # Parse users and generate passwords
     IFS=',' read -ra USER_ARRAY <<< "$USERS"
     PASSWORDS_FILE="$TMP_DIR/passwords.txt"
     > "$PASSWORDS_FILE"
@@ -129,16 +148,7 @@ generate_credentials() {
     # Copiar el archivo de passwords a /tmp para que deploy-local.sh lo muestre
     cp "$PASSWORDS_FILE" /tmp/admin-basic-auth-passwords.txt
 
-    echo "✅ Credentials generated"
-    return 0
-}
-
-# Create Kubernetes Secret
-create_k8s_secret() {
-    echo "📦 Creating Kubernetes Secret..."
-
     local secret_file="$TMP_DIR/${SECRET_NAME}-secret.yaml"
-
     cat > "$secret_file" << EOF
 apiVersion: v1
 kind: Secret
@@ -151,56 +161,106 @@ metadata:
 type: Opaque
 stringData:
   users: |
-$(sed 's/^/    /' "$TMP_DIR/users.htpasswd")
+$(sed 's/^/    /' "$htpasswd_file")
 EOF
 
-    echo "✅ Secret created at $secret_file"
+    seal_secret_file "$secret_file" "${SECRETS_DIR}/${SECRET_NAME}-sealed.yaml"
 }
 
-# Seal the secret
-seal_secret() {
-    echo "🔒 Sealing Secret with kubeseal..."
+# --- grafana (admin de Grafana, consumido via grafana.admin.existingSecret) -
+generate_grafana() {
+    echo "🔐 [grafana] Generating Grafana admin credentials (ns=monitoring)..."
 
-    local secret_file="$TMP_DIR/${SECRET_NAME}-secret.yaml"
-    local sealed_file="${SCRIPT_DIR}/../infra/bootstrap/secrets/${SECRET_NAME}-sealed.yaml"
+    local user="${GRAFANA_ADMIN_USER:-admin}"
+    local password="${GRAFANA_ADMIN_PASSWORD:-}"
+    if [ -z "$password" ]; then
+        password=$(openssl rand -base64 20)
+    fi
+    echo "🔑 grafana/$user: $password"
 
-    # Ensure output directory exists
-    mkdir -p "$(dirname "$sealed_file")"
+    local secret_file="$TMP_DIR/grafana-admin-secret.yaml"
+    cat > "$secret_file" << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-admin
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/managed-by: kubeseal
+    app.kubernetes.io/component: grafana
+type: Opaque
+stringData:
+  admin-user: ${user}
+  admin-password: ${password}
+EOF
 
-    # Seal the secret
-    kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system --format yaml < "$secret_file" > "$sealed_file"
-
-    echo "✅ SealedSecret created at $sealed_file"
+    seal_secret_file "$secret_file" "${SECRETS_DIR}/grafana-admin-sealed.yaml"
 }
 
-# Show usage instructions
+# --- cloudflare (token DNS-01 para cert-manager) ----------------------------
+generate_cloudflare() {
+    echo "🔐 [cloudflare] Generating Cloudflare API token secret (ns=cert-manager)..."
+
+    if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+        echo "❌ CLOUDFLARE_API_TOKEN no está definido (ponlo en .env.local)."
+        exit 1
+    fi
+
+    local secret_file="$TMP_DIR/cloudflare-api-token-secret.yaml"
+    cat > "$secret_file" << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflare-api-token
+  namespace: cert-manager
+  labels:
+    app.kubernetes.io/managed-by: kubeseal
+    app.kubernetes.io/component: cert-manager
+type: Opaque
+stringData:
+  api-token: ${CLOUDFLARE_API_TOKEN}
+EOF
+
+    seal_secret_file "$secret_file" "${SECRETS_DIR}/cloudflare-api-token-sealed.yaml"
+}
+
 show_instructions() {
     echo ""
     echo "📖 Next steps:"
-    echo "1. Commit the sealed secret:"
-    echo "   git add infra/bootstrap/secrets/${SECRET_NAME}-sealed.yaml"
-    echo "   git commit -m 'feat: add sealed secret for basic auth'"
+    echo "1. Commit the sealed secret(s):"
+    echo "   git add infra/bootstrap/secrets/*-sealed.yaml"
+    echo "2. Apply to cluster (o deja que bootstrap-prod.sh / deploy-local.sh lo hagan):"
+    echo "   kubectl apply -f infra/bootstrap/secrets/"
     echo ""
-    echo "2. Apply to cluster:"
-    echo "   kubectl apply -f infra/bootstrap/secrets/${SECRET_NAME}-sealed.yaml"
-    echo ""
-    echo "3. Verify unsealing:"
-    echo "   kubectl get secret ${SECRET_NAME} -n ${NAMESPACE}"
-    echo ""
-    echo "🔐 Generated credentials (save these securely):"
-    cat "$PASSWORDS_FILE" | while IFS=: read user password; do
-        echo "   $user: $password"
-    done
+    echo "⚠️  Los SealedSecrets están ligados al cluster contra el que se sellaron."
 }
 
 main() {
     check_prerequisites
     setup_temp_dir
-    generate_credentials
-    create_k8s_secret
-    seal_secret
-    show_instructions
 
+    case "$COMPONENT" in
+        basic-auth)
+            generate_basic_auth
+            ;;
+        grafana)
+            generate_grafana
+            ;;
+        cloudflare)
+            generate_cloudflare
+            ;;
+        all)
+            generate_basic_auth
+            generate_grafana
+            generate_cloudflare
+            ;;
+        *)
+            echo "❌ Componente desconocido: $COMPONENT (basic-auth|grafana|cloudflare|all)"
+            exit 1
+            ;;
+    esac
+
+    show_instructions
     echo ""
     echo "🎉 Credential generation completed successfully!"
 }

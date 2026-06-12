@@ -1,13 +1,6 @@
 # infra/envs/minikube/traefik-values.yaml
 # Environment-specific overrides for Minikube (local development)
 
-# Inherit from global values
-network:
-  domain: "127.0.0.1.nip.io"
-
-global:
-  domain: "127.0.0.1.nip.io"
-
 ingressRoute:
   dashboard:
     matchRule: >
@@ -28,6 +21,18 @@ extraObjects:
       issuerRef:
         name: local-ca-issuer
         kind: ClusterIssuer
+
+# Listener HTTPS del Gateway con el certificado wildcard local
+gateway:
+  listeners:
+    websecure:
+      port: 8443
+      protocol: HTTPS
+      mode: Terminate
+      namespacePolicy:
+        from: All
+      certificateRefs:
+        - name: wildcard-minikube-tls
 
 tlsStore:
   default:

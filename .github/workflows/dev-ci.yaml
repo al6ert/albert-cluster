@@ -51,7 +51,7 @@ jobs:
           driver: docker
           cache: true
           minikube-version: latest
-          kubernetes-version: v1.30.2
+          kubernetes-version: v1.33.1
           cpus: 4
           memory: 12288mb
           wait: all
@@ -66,23 +66,17 @@ jobs:
           minikube addons disable ingress
           minikube addons disable storage-provisioner
 
-      - name: Install kubeconform
-        run: |
-          curl -Lo kubeconform https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64
-          chmod +x kubeconform
-          sudo mv kubeconform /usr/local/bin/
-
       - name: Bootstrap cluster (Kustomize-based)
         run: |
-          cd infra/bootstrap
           set -euo pipefail
+          cd infra/bootstrap
 
           echo "::group::Phase 1: Apply CRDs with Kustomize"
-          kubectl apply -k crds/ --validate=false
+          kubectl apply --server-side --force-conflicts -k crds/
           echo "::endgroup::"
 
           echo "::group::Phase 2: Wait for CRDs Established"
-          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io' | \
+          kubectl get crd -o name | grep -E 'cert-manager.io|traefik.io|acme.cert-manager.io|bitnami.com|argoproj.io|gateway.networking.k8s.io|monitoring.coreos.com' | \
             xargs kubectl wait --for=condition=Established --timeout=180s || {
               echo "⚠️ CRDs not established"
               kubectl get crd -o wide
@@ -142,8 +136,11 @@ jobs:
 
           echo "::group::Phase 7: Generate and Apply Sealed Secrets (Dynamic for CI)"
           sudo apt-get update && sudo apt-get install -y apache2-utils
-          ../../scripts/generate-credentials.sh --namespace admin --users admin --secret-name admin-basic-auth
+          ../../scripts/generate-credentials.sh --component basic-auth --namespace admin --users admin --secret-name admin-basic-auth
           kubectl apply -f secrets/admin-basic-auth-sealed.yaml
+
+          GRAFANA_ADMIN_PASSWORD=admin ../../scripts/generate-credentials.sh --component grafana
+          kubectl apply -f secrets/grafana-admin-sealed.yaml
 
           echo "::group::Generate Cloudflare dummy secret"
           cat <<EOF | kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system --format yaml > secrets/cloudflare-api-token-sealed.yaml
@@ -203,13 +200,11 @@ jobs:
           environment: minikube
           working-directory: infra/apps
           skip-diff: true
-        env:
-          KUBECONFORM_ARGS: -schema-location default -schema-location 'https://raw.githubusercontent.com/traefik/traefik/v3.4.3/traefik.crds.yaml'
 
       - name: Pre-pull container images
         run: |
           source versions.env
-          minikube ssh "docker pull traefik:v3.4.3; docker pull quay.io/jetstack/cert-manager-controller:v1.18.2"
+          minikube ssh "docker pull traefik:${TRAEFIK_IMAGE_VERSION}; docker pull quay.io/jetstack/cert-manager-controller:${CERT_MANAGER_IMAGE_VERSION}"
 
       - name: Deploy applications to Minikube
         run: |

@@ -54,7 +54,8 @@ This project and everyone participating in it is governed by our Code of Conduct
 
 3. **Start Minikube**:
    ```bash
-   minikube start --driver=docker --kubernetes-version=v1.29.2
+   source versions.env
+   minikube start --driver=docker --kubernetes-version=${KUBERNETES_VERSION}
    ```
 
 4. **Deploy Locally**:

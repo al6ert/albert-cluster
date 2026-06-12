@@ -21,7 +21,8 @@ runs:
     - name: Install yamllint
       shell: bash
       run: |
-        pip install yamllint
+        # Misma versión que .pre-commit-config.yaml para resultados consistentes
+        pip install yamllint==1.33.0
 
     - name: Run yamllint
       shell: bash
@@ -52,6 +53,23 @@ runs:
             print(f'❌ YAML syntax error: {e}')
             sys.exit(1)
         "
+
+    - name: Validate against Kubernetes schemas (kubeconform)
+      shell: bash
+      run: |
+        if ! command -v kubeconform >/dev/null 2>&1; then
+          curl -sSL -o /tmp/kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp
+          sudo mv /tmp/kubeconform /usr/local/bin/
+        fi
+        # Schemas upstream + catálogo comunitario de CRDs (Gateway API, Traefik,
+        # cert-manager, prometheus-operator, sealed-secrets, ArgoCD...)
+        kubeconform -strict -summary \
+          -ignore-missing-schemas \
+          -schema-location default \
+          -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{ .Group }}/{{ .ResourceKind }}_{{ .ResourceAPIVersion }}.json' \
+          infra/tmp/${{ inputs.environment }}-all.yaml
 
     - name: Helmfile lint
       shell: bash

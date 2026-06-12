@@ -1,38 +1,49 @@
 # infra/apps/traefik/values.yaml
 # Base values for Traefik v3.x - environment-specific values will override these
 
-
-global:
-  domain: "{{ .Values.network.domain | default \"example.com\" }}"
-
 providers:
   kubernetesCRD:
     allowCrossNamespace: true        # For centralized middleware
   kubernetesIngress:
-    enabled: true
+    enabled: true                    # Aún usado por el Ingress gRPC de argo-api (netcup)
     publishedService:
       enabled: true
+  # Gateway API: proveedor moderno; las apps exponen HTTPRoutes
+  kubernetesGateway:
+    enabled: true
 
+# Gateway compartido del cluster. El listener websecure (HTTPS) se define por
+# entorno en infra/envs/<entorno>/traefik-values.yaml con su certificado wildcard.
+gateway:
+  enabled: true
+  name: traefik-gateway
+  listeners:
+    web:
+      port: 8000
+      protocol: HTTP
+      namespacePolicy:
+        from: All
 
 ingressRoute:
+  # El dashboard usa el servicio interno api@internal, solo alcanzable vía
+  # IngressRoute nativo de Traefik (no migra a Gateway API).
   dashboard:
     enabled: true
     entryPoints: ["websecure"]
-    # Domain will be injected from environment layer
-    matchRule: >
-      Host(`traefik.{{ .Values.network.domain | default "example.com" }}`)
-      && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
+    # matchRule (con el dominio del entorno) se define en
+    # infra/envs/<entorno>/traefik-values.yaml
     middlewares:
       - name: basic-auth
         namespace: admin
 
 ports:
   web:
-    redirections:
-      entryPoint:
-        to: websecure
-        scheme: https
-        permanent: true
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
 
 service:
   type: LoadBalancer

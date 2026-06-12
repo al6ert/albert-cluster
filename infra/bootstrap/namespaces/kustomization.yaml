@@ -5,3 +5,4 @@ resources:
   - cert-manager.yaml
   - argocd.yaml
   - hello.yaml
+  - monitoring.yaml

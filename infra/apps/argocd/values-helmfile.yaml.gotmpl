@@ -4,7 +4,18 @@ configs:
     server.insecure: true
     application.namespaces: "*" # Permite gestionar aplicaciones en todos los namespaces
 
+# El render de helmfile descarga todos los charts en el primer uso y supera
+# los 60s por defecto; sin estos timeouts el primer sync tras reiniciar el
+# repo-server falla con DeadlineExceeded hasta que la caché se calienta.
+controller:
+  env:
+    - name: ARGOCD_REPO_SERVER_TIMEOUT_SECONDS
+      value: "300"
+
 repoServer:
+  env:
+    - name: ARGOCD_EXEC_TIMEOUT
+      value: 5m
   volumeMounts:
     - name: helmfile-plugin-cm
       mountPath: /home/argocd/cmp-server/config/plugin.yaml

@@ -1,0 +1,113 @@
+# Arquitectura
+
+## Modelo: GitOps puro
+
+El repositorio Git es la **única fuente de verdad**. Nadie aplica manifiestos a
+mano en producción: ArgoCD observa el repo y reconcilia el cluster.
+
+```
+ Git (este repo)                Cluster
+ ┌────────────────┐             ┌──────────────────────────────────────┐
+ │ infra/apps/    │   watch     │  ArgoCD Application                   │
+ │  helmfile.yaml │ ──────────► │   (cluster-root / cluster-minikube)  │
+ │ infra/envs/    │             │        │ plugin "helmfile"           │
+ │ infra/charts/  │             │        ▼                             │
+ └────────────────┘             │   helmfile template → manifiestos    │
+        ▲                       │        │                             │
+        │ git push              │        ▼ apply (prune, self-heal)    │
+        │                       │   cert-manager, traefik, prometheus… │
+ ┌──────┴───────┐               └──────────────────────────────────────┘
+ │  GitHub CI   │  (en main: argocd app sync cluster-root)
+ └──────────────┘
+```
+
+- **ArgoCD** ejecuta Helmfile a través de un *config management plugin* (CMP).
+  No hay manifiestos renderizados versionados; ArgoCD renderiza en vivo.
+- **Helmfile** combina, por cada app, su chart upstream + `values.yaml` base +
+  `infra/envs/<entorno>/<app>-values.yaml`.
+- **Versiones de chart**: inyectadas como variables de entorno al plugin desde
+  `infra/bootstrap/argocd-root.yaml` (netcup) y `argocd-minikube.yaml` (dev).
+  La fuente de verdad es [`versions.env`](../versions.env).
+
+## Ramas y entornos
+
+| Entorno | Rama | ArgoCD Application | Contexto kubectl | Dominio |
+|---------|------|--------------------|------------------|---------|
+| Local (Minikube) | `dev` | `cluster-minikube` | `minikube` | `127.0.0.1.nip.io` |
+| Producción (Netcup) | `main` | `cluster-root` | `netcup` | `albertperez.dev` |
+
+`nip.io` resuelve cualquier `*.127.0.0.1.nip.io` a `127.0.0.1`, así no hace falta
+tocar `/etc/hosts` en local.
+
+## Componentes y orden de despliegue (sync-waves)
+
+El orden lo define `infra/apps/helmfile.yaml` (los `helmfiles:` se aplican en orden):
+
+| Wave | App | Rol |
+|------|-----|-----|
+| 0 | **cert-manager** | Emite certificados TLS (CA local en dev, Let's Encrypt DNS-01 en prod). |
+| 0 | **sealed-secrets** | Controller que descifra los `SealedSecret` → `Secret`. |
+| 1 | **traefik** | Ingress controller / **implementación de Gateway API** + LoadBalancer de entrada. |
+| 2 | **argocd** | El propio GitOps (se autogestiona tras el bootstrap). |
+| 3 | **hello** | App de ejemplo / canario (chart local en `infra/charts/hello`). |
+| 3 | **prometheus** | `kube-prometheus-stack` (Prometheus + Grafana + Alertmanager). |
+
+Las **CRDs** (cert-manager, traefik, gateway-api, prometheus, sealed-secrets,
+argo) **no** las instalan los charts: viven en `infra/bootstrap/crds/` y se
+aplican con `kubectl apply --server-side` antes que nada. Esto evita el problema
+clásico de Helm con CRDs y los `--server-side` evita conflictos de tamaño.
+
+## Red
+
+Migrado a **Gateway API**. Traefik es la *implementación* del Gateway, no solo un
+controlador de `Ingress`:
+
+```
+            *.albertperez.dev (wildcard DNS) → IP del VPS
+                        │
+                  ┌─────▼──────┐  Service LoadBalancer
+                  │  Traefik   │  (metallb en minikube)
+                  └─────┬──────┘
+            Gateway "traefik-gateway" (namespace traefik)
+             listener websecure :8443 (TLS, cert wildcard)
+                        │ HTTPRoute (cada app)
+        ┌───────────────┼────────────────┬─────────────┐
+        ▼               ▼                 ▼             ▼
+     hello          argocd-server     grafana      prometheus
+```
+
+- Cada app publica un **`HTTPRoute`** que apunta al listener `websecure` del
+  Gateway compartido. El **TLS lo termina el Gateway** con el certificado
+  wildcard del entorno (`wildcard-netcup-tls` / `wildcard-minikube-tls`), así
+  que las apps solo declaran su `hostname`.
+- **Tres excepciones deliberadas** que no usan Gateway API:
+  1. **Dashboard de Traefik** → `IngressRoute` nativo (apunta a `api@internal`,
+     un servicio interno que Gateway API no puede expresar).
+  2. **API gRPC de ArgoCD** (solo netcup) → `Ingress` clásico con scheme `h2c`
+     en `argo-api.albertperez.dev` (el CLI `argocd` necesita gRPC).
+  3. **Middlewares** de Traefik (basic-auth del dashboard) → CRD `Middleware`.
+
+Por eso Traefik tiene los **tres providers activos** (`kubernetesGateway`,
+`kubernetesCRD`, `kubernetesIngress`). Es funcional pero conviene saberlo: hay
+tres paradigmas de routing conviviendo. Ver
+[assessment.md](assessment.md) para la recomendación de consolidación.
+
+## Estructura de directorios
+
+```
+albert-cluster/
+├── versions.env              # Fuente de verdad de versiones
+├── deploy-local.sh           # Despliegue local idempotente
+├── docs/                     # Esta documentación
+├── scripts/                  # bootstrap-prod, deploy, generate-credentials
+├── tests/smoke.sh            # Smoke tests
+├── .github/workflows/        # ci.yaml (main/PR) + dev-ci (rama dev)
+└── infra/
+    ├── bootstrap/            # CRDs, namespaces, RBAC, middlewares, secrets sellados
+    │   ├── crds/             # Aplicadas con server-side antes que los charts
+    │   ├── argocd-root.yaml      # Application de producción (netcup, rama main)
+    │   └── argocd-minikube.yaml  # Application de local (minikube, rama dev)
+    ├── apps/                 # Un sub-helmfile por app + helmfile.yaml raíz
+    ├── envs/                 # Overrides por entorno (minikube / netcup)
+    └── charts/hello/         # Chart local de ejemplo
+```

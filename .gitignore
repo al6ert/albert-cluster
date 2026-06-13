@@ -24,6 +24,7 @@ infra/rendered/**
 tmp/**
 .tmp/
 *.tmp
+infra/tmp/
 
 .dev-ci-logs
 .ci-logs

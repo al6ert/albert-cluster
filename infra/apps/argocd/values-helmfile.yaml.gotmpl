@@ -81,7 +81,11 @@ extraObjects:
           name: helmfile
         spec:
           init:
-            command: ["helmfile", "deps"]
+            # Debe correr con las MISMAS versiones que generate (source de
+            # versions.env); si no, deps resuelve otras versiones y el
+            # template --skip-deps falla con "no resolved dependency found"
+            command: ["sh", "-c"]
+            args: ["set -a && . ../../versions.env && set +a && helmfile --environment \"${ARGOCD_ENV_HELMFILE_ENVIRONMENT:-$HELMFILE_ENVIRONMENT}\" deps"]
           generate:
             command: ["sh", "-c"]
             # - Fuente única de versiones: source de versions.env del propio

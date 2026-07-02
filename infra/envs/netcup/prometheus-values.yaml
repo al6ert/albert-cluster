@@ -64,6 +64,13 @@ alertmanager:
           namespace: traefik
           sectionName: websecure
 
+# Webhooks de admission firmados por cert-manager en vez de los Jobs-hook
+# create/patch del chart (tienen ttl=60s y hacen fallar syncs largos de ArgoCD)
+prometheusOperator:
+  admissionWebhooks:
+    certManager:
+      enabled: true
+
 extraManifests:
   # El subchart de grafana no soporta route nativo; HTTPRoute manual
   - apiVersion: gateway.networking.k8s.io/v1

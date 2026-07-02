@@ -12,7 +12,8 @@ set -euo pipefail
 #   basic-auth  htpasswd para el dashboard de Traefik (default; namespace admin)
 #   grafana     credenciales admin de Grafana (Secret grafana-admin, namespace monitoring)
 #   cloudflare  token de API de Cloudflare para cert-manager (requiere CLOUDFLARE_API_TOKEN)
-#   all         los tres anteriores
+#   argocd-redis password de auth del Redis de ArgoCD (Secret argocd-redis, namespace argocd)
+#   all         todos los anteriores
 #
 # Passwords fijos via .env.local (no versionado): ADMIN_PASSWORD, ARGO_PASSWORD,
 # GRAFANA_ADMIN_PASSWORD, CLOUDFLARE_API_TOKEN. Sin ellos se generan aleatorios
@@ -197,6 +198,33 @@ EOF
     seal_secret_file "$secret_file" "${SECRETS_DIR}/grafana-admin-sealed.yaml"
 }
 
+# --- argocd-redis (auth del Redis de ArgoCD; sustituye al Job redis-secret-init) ---
+generate_argocd_redis() {
+    echo "🔐 [argocd-redis] Generating ArgoCD Redis auth secret (ns=argocd)..."
+
+    local password="${ARGOCD_REDIS_PASSWORD:-}"
+    if [ -z "$password" ]; then
+        password=$(openssl rand -base64 24)
+    fi
+
+    local secret_file="$TMP_DIR/argocd-redis-secret.yaml"
+    cat > "$secret_file" << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-redis
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: kubeseal
+    app.kubernetes.io/component: argocd
+type: Opaque
+stringData:
+  auth: ${password}
+EOF
+
+    seal_secret_file "$secret_file" "${SECRETS_DIR}/argocd-redis-sealed.yaml"
+}
+
 # --- cloudflare (token DNS-01 para cert-manager) ----------------------------
 generate_cloudflare() {
     echo "🔐 [cloudflare] Generating Cloudflare API token secret (ns=cert-manager)..."
@@ -249,13 +277,17 @@ main() {
         cloudflare)
             generate_cloudflare
             ;;
+        argocd-redis)
+            generate_argocd_redis
+            ;;
         all)
             generate_basic_auth
             generate_grafana
             generate_cloudflare
+            generate_argocd_redis
             ;;
         *)
-            echo "❌ Componente desconocido: $COMPONENT (basic-auth|grafana|cloudflare|all)"
+            echo "❌ Componente desconocido: $COMPONENT (basic-auth|grafana|cloudflare|argocd-redis|all)"
             exit 1
             ;;
     esac

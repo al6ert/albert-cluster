@@ -45,7 +45,12 @@ alertmanager:
           namespace: traefik
           sectionName: websecure
 
+# Webhooks de admission firmados por cert-manager en vez de los Jobs-hook
+# create/patch del chart (tienen ttl=60s y hacen fallar syncs largos de ArgoCD)
 prometheusOperator:
+  admissionWebhooks:
+    certManager:
+      enabled: true
   resources:
     limits:
       cpu: 200m

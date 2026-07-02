@@ -150,6 +150,11 @@ apply_bootstrap() {
         bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --component grafana
     kubectl apply -f "${LOCAL_SECRETS_DIR}/grafana-admin-sealed.yaml"
 
+    # Auth del Redis de ArgoCD (redisSecretInit desactivado en el chart)
+    SECRETS_DIR="$LOCAL_SECRETS_DIR" \
+        bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --component argocd-redis
+    kubectl apply -f "${LOCAL_SECRETS_DIR}/argocd-redis-sealed.yaml"
+
     # Generate cloudflare-api-token with dummy for local
     echo "Generating dummy Cloudflare API token secret for local..."
     TMP_SECRET_YAML=$(mktemp)

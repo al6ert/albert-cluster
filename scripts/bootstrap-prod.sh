@@ -75,7 +75,7 @@ done
 # Los SealedSecrets solo se dessellan en el cluster contra el que se generaron.
 # Si falta alguno, genéralo con el contexto kubectl apuntando a ESTE cluster:
 #   ./scripts/generate-credentials.sh --component all
-for required in grafana-admin-sealed.yaml admin-basic-auth-sealed.yaml cloudflare-api-token-sealed.yaml; do
+for required in grafana-admin-sealed.yaml admin-basic-auth-sealed.yaml cloudflare-api-token-sealed.yaml argocd-redis-sealed.yaml; do
     if [ ! -f "secrets/${required}" ]; then
         echo "⚠️  Falta secrets/${required}; genera con: ./scripts/generate-credentials.sh --component all"
     fi

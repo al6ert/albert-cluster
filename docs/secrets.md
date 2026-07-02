@@ -23,6 +23,7 @@ Un único script para generarlos: [`scripts/generate-credentials.sh`](scripts.md
 | Basic-auth dashboard | `admin-basic-auth` (`admin`) | Middleware basic-auth de Traefik | `--component basic-auth` |
 | Grafana admin | `grafana-admin` (`monitoring`) | `grafana.admin.existingSecret` | `--component grafana` |
 | Cloudflare API token | `cloudflare-api-token` (`cert-manager`) | ClusterIssuer `letsencrypt-prod` (DNS-01) | `--component cloudflare` |
+| Redis de ArgoCD | `argocd-redis` (`argocd`) | Auth del Redis (el Job `redis-secret-init` del chart está desactivado: su ttl de 60s hacía fallar syncs largos) | `--component argocd-redis` |
 
 Archivos sellados: `infra/bootstrap/secrets/*-sealed.yaml`.
 

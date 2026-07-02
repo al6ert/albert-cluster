@@ -11,6 +11,13 @@ configs:
     controller.repo.server.timeout.seconds: "300"
     server.repo.server.timeout.seconds: "300"
 
+# El Job-hook redis-secret-init tiene ttlSecondsAfterFinished=60: se autoborra
+# antes de que un sync largo lo verifique y ArgoCD marca el sync como fallido
+# ("Resource ... is missing"). El secret argocd-redis (key "auth") lo provee
+# nuestro flujo de SealedSecrets (generate-credentials.sh --component argocd-redis).
+redisSecretInit:
+  enabled: false
+
 repoServer:
   env:
     - name: ARGOCD_EXEC_TIMEOUT

@@ -7,7 +7,7 @@ en `infra/envs/<entorno>/<app>-values.yaml`. Versiones en
 | App | Chart | Versión | Namespace | Rol | Doc oficial |
 |-----|-------|---------|-----------|-----|-------------|
 | cert-manager | `jetstack/cert-manager` | `v1.20.2` | `cert-manager` | TLS automático | [cert-manager.io](https://cert-manager.io/docs/) |
-| sealed-secrets | `sealed-secrets/sealed-secrets` | `2.18.6` | `kube-system` | Cifrado de secretos | [github](https://github.com/bitnami-labs/sealed-secrets) |
+| sealed-secrets | `sealed-secrets/sealed-secrets` | `2.18.6` | `kube-system` | Cifrado de secretos | [github](https://github.com/bitnami/sealed-secrets) |
 | traefik | `traefik/traefik` | `40.3.0` | `traefik` | Gateway API + ingress | [doc.traefik.io](https://doc.traefik.io/traefik/) |
 | argocd | `argo/argo-cd` | `9.5.21` | `argocd` | GitOps | [argo-cd.readthedocs.io](https://argo-cd.readthedocs.io/) |
 | prometheus | `prometheus-community/kube-prometheus-stack` | `86.2.2` | `monitoring` | Métricas/dashboards/alertas | [github](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) |
@@ -16,7 +16,7 @@ en `infra/envs/<entorno>/<app>-values.yaml`. Versiones en
 Repos de charts:
 [traefik](https://traefik.github.io/charts) ·
 [jetstack](https://charts.jetstack.io) ·
-[sealed-secrets](https://bitnami-labs.github.io/sealed-secrets) ·
+[sealed-secrets](https://bitnami.github.io/sealed-secrets) ·
 [argo-helm](https://argoproj.github.io/argo-helm) ·
 [prometheus-community](https://prometheus-community.github.io/helm-charts).
 Gateway API: [gateway-api.sigs.k8s.io](https://gateway-api.sigs.k8s.io/).
@@ -58,29 +58,25 @@ para el CLI. Contraseña inicial: ver [secrets.md](secrets.md#argocd).
 Stack completo: Prometheus + Grafana + Alertmanager + node-exporter +
 kube-state-metrics + un montón de CRDs.
 
-**Coste en producción (Netcup, 1 nodo):**
+**Coste en producción (Netcup, 1 nodo) — ya aligerado:**
 
 | Recurso | Petición |
 |---------|----------|
-| Disco Prometheus | 50Gi (retención 30d) |
-| Disco Grafana | 10Gi |
-| Disco Alertmanager | 10Gi |
-| RAM Prometheus | 2Gi request / 4Gi limit |
-| **Total disco** | **~70Gi** |
+| Disco Prometheus | 20Gi (retención 15d) |
+| Disco Grafana | 5Gi |
+| Disco Alertmanager | 2Gi |
+| RAM Prometheus | 1Gi request / 2Gi limit |
+| **Total disco** | **~27Gi** |
 
-Es, de lejos, lo que más consume del cluster. Para un VPS de un nodo conviene
-decidir activamente si lo quieres encendido **antes** de tener apps reales que
-monitorizar.
+Sigue siendo lo que más consume del cluster. Pendiente real: **Alertmanager no
+tiene receptores** (Slack/email/Telegram) — configúralos en
+`alertmanager.config` o desactívalo; sin receptores no aporta nada.
 
-### Opción A — aligerarlo (si lo mantienes)
+### Opción A — aligerarlo más / subirlo
 
-En `infra/envs/netcup/prometheus-values.yaml`:
-
-- Bajar `prometheus.prometheusSpec.retention` de `30d` a `7d`-`15d`.
-- Bajar `storageSpec` de `50Gi` a `10`-`20Gi` y Grafana/Alertmanager a `2`-`5Gi`.
-- Bajar `resources.requests.memory` si el nodo va justo.
-- Desactivar `alertmanager` hasta que configures receptores reales (Slack/email);
-  sin receptores no aporta nada.
+Ajusta en `infra/envs/netcup/prometheus-values.yaml`: `retention`, `storageSpec`
+y `resources`. Cuando haya apps reales que observar, vuelve a subir retención y
+disco según necesidad.
 
 ### Opción B — apagarlo de momento (recomendado para arrancar)
 

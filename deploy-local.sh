@@ -37,7 +37,7 @@ check_prerequisites() {
     # Check if kubeseal is available
     if ! command -v kubeseal >/dev/null 2>&1; then
         echo "❌ kubeseal not found. Please install kubeseal first."
-        echo "   Install with: curl -Lo kubeseal https://github.com/bitnami-labs/sealed-secrets/releases/download/v${KUBESEAL_VERSION#v}/kubeseal-darwin-amd64 && chmod +x kubeseal && sudo mv kubeseal /usr/local/bin/"
+        echo "   Install with: curl -Lo kubeseal https://github.com/bitnami/sealed-secrets/releases/download/v${KUBESEAL_VERSION#v}/kubeseal-darwin-amd64 && chmod +x kubeseal && sudo mv kubeseal /usr/local/bin/"
         exit 1
     fi
 

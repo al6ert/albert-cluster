@@ -27,9 +27,7 @@ runs:
     - name: Run yamllint
       shell: bash
       run: |
-        yamllint . || {
-          echo "::warning::yamllint found issues, but continuing..."
-        }
+        yamllint -c .yamllint.yml .
 
     - name: Render manifests for validation
       shell: bash

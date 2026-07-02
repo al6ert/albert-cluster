@@ -1,0 +1,65 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended", ":dependencyDashboard"],
+
+  // GitOps: todo se prueba primero contra dev (minikube en CI);
+  // producción solo recibe cambios al promocionar dev → main.
+  baseBranches: ["dev"],
+
+  // ── Regla de seguridad principal: nada con menos de 7 días ──
+  minimumReleaseAge: "7 days",
+  internalChecksFilter: "strict",
+
+  // Ritmo y ruido
+  schedule: ["before 9am on monday"],
+  prConcurrentLimit: 5,
+  labels: ["dependencies"],
+
+  packageRules: [
+    // Majors: SIEMPRE manual, PR aislada, sin automerge y con más cautela
+    {
+      matchUpdateTypes: ["major"],
+      automerge: false,
+      addLabels: ["major", "needs-review"],
+      minimumReleaseAge: "14 days",
+    },
+    // Minor/patch de charts y herramientas de versions.env: PR agrupada
+    {
+      matchManagers: ["custom.regex"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "versions.env (minor/patch)",
+      automerge: false, // ponlo en true cuando confíes en la CI
+    },
+    // kubectl/kubernetes se mueven juntos y con calma (ligados a minikube)
+    {
+      matchDepNames: ["kubernetes/kubernetes"],
+      groupName: "kubernetes",
+      minimumReleaseAge: "30 days",
+    },
+    // GitHub Actions del repo
+    {
+      matchManagers: ["github-actions"],
+      groupName: "github actions",
+    },
+  ],
+
+  // Los avisos de seguridad (CVE) saltan la espera de 7 días
+  vulnerabilityAlerts: {
+    minimumReleaseAge: "0 days",
+    addLabels: ["security"],
+    schedule: ["at any time"],
+  },
+
+  // Manager por regex para versions.env: cada export anotado con una línea
+  //   # renovate: datasource=... depName=...( registryUrl=...)
+  customManagers: [
+    {
+      customType: "regex",
+      managerFilePatterns: ["/(^|/)versions\\.env$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( registryUrl=(?<registryUrl>\\S+))?\\s*\\nexport [A-Z_]+_VERSION=\"(?<currentValue>[^\"]+)\"",
+      ],
+      versioningTemplate: "semver-coerced",
+    },
+  ],
+}

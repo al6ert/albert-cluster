@@ -9,19 +9,19 @@ nodo, antes de meter apps propias.
 | # | Perspectiva | Nota | Una línea |
 |---|-------------|:----:|-----------|
 | 1 | Arquitectura GitOps | **A-** | Diseño limpio, sync-waves claros, CRDs fuera de los charts, render en vivo. |
-| 2 | Mantenibilidad / DRY | **C+** | Buen patrón por app, pero versiones triplicadas y dos paradigmas de routing. |
+| 2 | Mantenibilidad / DRY | **B+** | Buen patrón por app y fuente única de versiones; queda la convivencia de paradigmas de routing. |
 | 3 | Seguridad (postura) | **B-** | SealedSecrets + RBAC mínimo + securityContext en hello; faltan NetworkPolicy y admission control. |
 | 4 | Operabilidad Day-2 | **D+** | Sin backups, sin DR, sin runbooks. El mayor agujero. |
 | 5 | Fiabilidad / HA | **C** | Single-node real; "replicas: 2" en prod es cosmético. |
 | 6 | Observabilidad | **C+** | Métricas sí (pesadas), logs no, alertas sin receptores. |
-| 7 | Coste / eficiencia | **C** | kube-prometheus-stack se come el VPS (~70Gi + 2-4Gi RAM). |
+| 7 | Coste / eficiencia | **B-** | kube-prometheus-stack aligerado (~27Gi + 1-2Gi RAM); sigue siendo el mayor consumidor. |
 | 8 | Preparación para apps propias | **C** | Patrón de alta listo; faltan storage, quotas, network policy, DNS confirmado. |
 | 9 | CI/CD | **B+** | PR valida en minikube, main promociona vía ArgoCD, concurrencia controlada. |
-| 10 | Gestión de dependencias | **C** | Centralizado en versions.env pero 100% manual y triplicado. |
+| 10 | Gestión de dependencias | **B** | Fuente única + Renovate configurado (falta instalar la App); regla de 7 días. |
 | 11 | Developer experience | **A-** | `deploy-local.sh` idempotente + nip.io + smoke tests = loop local muy bueno. |
-| 12 | Documentación | **B** (tras esta tanda) | Antes monolítica en README; ahora multipágina. CONTRIBUTING está desactualizado. |
+| 12 | Documentación | **A-** | Multipágina y al día; CONTRIBUTING reescrito. |
 | 13 | Reproducibilidad | **B** | Versiones pineadas y GitOps; resta el secreto cloudflare manual y DNS externo. |
-| 14 | Higiene del repo | **B-** | `infra/tmp/` sin gitignore, `temp/` vacío, restos de logs de CI. |
+| 14 | Higiene del repo | **A-** | deploy.sh/temp/common/rendered eliminados; solo quedan logs locales ignorados. |
 
 **Media ponderada: ~C+/B-.** Una base de plataforma sólida y bien pensada, con
 dos debilidades claras: **operabilidad day-2 (backups/DR)** y **deuda de DRY en
@@ -38,12 +38,11 @@ Git, sync-waves por orden de inclusión, CRDs aplicadas server-side fuera de los
 charts. Separación dev/main → minikube/netcup limpia. **Resta**: todo cuelga de
 una sola `Application` monolítica; una app rota puede frenar el sync del resto.
 
-### 2. Mantenibilidad / DRY — C+
-El patrón "una carpeta por app + values por entorno" es excelente y repetible.
-**Lo que baja la nota**: la versión de cada chart está **en tres sitios**
-(`versions.env`, `argocd-root.yaml`, `argocd-minikube.yaml`) → riesgo de drift.
-Y hay **tres providers de Traefik** activos (Gateway + CRD + Ingress) = tres
-formas de enrutar conviviendo.
+### 2. Mantenibilidad / DRY — B+
+El patrón "una carpeta por app + values por entorno" es excelente y repetible,
+y las versiones tienen **fuente única** (`versions.env`, que el plugin lee del
+checkout). **Lo que baja la nota**: hay **tres providers de Traefik** activos
+(Gateway + CRD + Ingress) = tres formas de enrutar conviviendo.
 
 ### 3. Seguridad — B-
 **Bien**: SealedSecrets como mecanismo único, RBAC mínimo en CI (`contents:
@@ -83,29 +82,29 @@ PR → valida en minikube real + smoke tests; main → `argocd app diff/sync`;
 concurrencia con cancel-in-progress; permisos mínimos. Muy correcto. Mejorable:
 no hay gate de "esperar a que ArgoCD reporte Healthy" tras el sync.
 
-### 10. Gestión de dependencias — C
-Centralización en `versions.env` es buena idea, pero 100% manual y **triplicada**.
-Sin Renovate/Dependabot. Plan en [updates.md](updates.md).
+### 10. Gestión de dependencias — B
+Fuente única en `versions.env` con anotaciones Renovate y `renovate.json5`
+(regla de 7 días, majors manuales, CVEs sin espera). Falta instalar la GitHub
+App para que empiece a abrir PRs. Detalle en [updates.md](updates.md).
 
 ### 11. Developer experience — A-
 `deploy-local.sh` idempotente, metallb automático (sin `minikube tunnel` con
 sudo), `nip.io` (sin tocar hosts), smoke tests legibles. Levantar el cluster en
 local es de los puntos más cuidados.
 
-### 12. Documentación — B (tras esta tanda)
-Antes: todo en un README de 300 líneas. Ahora: `docs/` multipágina. **Pendiente**:
-`CONTRIBUTING.md` está genérico/desactualizado (habla de "kind", "unit tests",
-"API documentation" que no aplican).
+### 12. Documentación — A-
+`docs/` multipágina, al día y con la rúbrica viva; `CONTRIBUTING.md` reescrito
+acorde al flujo real (dev→minikube, main→prod).
 
 ### 13. Reproducibilidad — B
 Versiones pineadas + GitOps hacen el cluster reconstruible. Resta: el token de
 Cloudflare es manual y los SealedSecrets van ligados al cluster (recrearlo exige
 re-sellar todo), y el DNS vive fuera del repo.
 
-### 14. Higiene del repo — B-
-`infra/tmp/` (varios MB de YAML renderizado) **no está en `.gitignore`** (aunque
-hoy no esté trackeado). `temp/` vacío. Restos `.ci-logs/`/`.dev-ci-logs/` (sí
-ignorados). Limpieza menor pendiente.
+### 14. Higiene del repo — A-
+`scripts/deploy.sh`, `temp/`, `infra/envs/common/` e `infra/rendered/`
+eliminados; `infra/tmp/` cubierto por `.gitignore`. Solo quedan artefactos
+locales ya ignorados (`.ci-logs/`, `.dev-ci-logs/`).
 
 ---
 
@@ -138,12 +137,11 @@ DNS wildcard**, **alertas con receptores reales**, y decidir si pasas de la
 `Application` monolítica a `ApplicationSet`/Applications por app.
 
 ### ¿Qué me sobra / es redundante?
-1. **`scripts/deploy.sh`** — solapa CI + deploy-local + sync de ArgoCD, y su rama
-   "helmfile apply directo a netcup" contradice el GitOps. Quitar o reducir a
-   render. Ver [scripts.md](scripts.md#scriptsdeploysh--redundante).
-2. **Versiones triplicadas** — la redundancia más real y peligrosa.
-3. **`infra/tmp/`** y **`temp/`** — basura/artefactos.
-4. **Tres providers de Traefik** — consolidar a futuro hacia solo Gateway API.
+1. ~~`scripts/deploy.sh`~~ — **eliminado** (solapaba CI + deploy-local + sync).
+2. ~~Versiones triplicadas~~ — **resuelto** con fuente única en `versions.env`.
+3. ~~`temp/`, `infra/envs/common/`, `infra/rendered/`~~ — **eliminados**.
+4. **Tres providers de Traefik** — consolidar a futuro hacia solo Gateway API
+   (único punto que sigue en pie).
 
 ---
 
@@ -153,10 +151,11 @@ DNS wildcard**, **alertas con receptores reales**, y decidir si pasas de la
 - [ ] **Backups y DR**: Velero (o snapshots del proveedor) + un restore probado.
 - [ ] **Estrategia de almacenamiento**: definir `StorageClass` por defecto y qué
       apps llevan PV.
-- [ ] **Resolver la triplicación de versiones** (que el plugin lea `versions.env`).
-      Bloqueante para automatizar updates. Ver [updates.md](updates.md).
+- [x] **Triplicación de versiones resuelta**: el plugin hace `source versions.env`
+      del checkout (fuente única). Ver [updates.md](updates.md).
 - [ ] **Confirmar DNS wildcard** `*.albertperez.dev` → IP del VPS.
-- [ ] **Decidir monitorización**: apagar o aligerar kube-prometheus-stack.
+- [x] **Monitorización aligerada**: retención 15d, ~27Gi total, RAM a la mitad.
+      Pendiente decidir receptores de Alertmanager.
 
 ### 🟠 Endurecimiento
 - [ ] `NetworkPolicy` por namespace (default-deny + reglas explícitas).
@@ -166,21 +165,18 @@ DNS wildcard**, **alertas con receptores reales**, y decidir si pasas de la
 - [ ] `PodDisruptionBudget` donde aplique.
 
 ### 🟡 Calidad / limpieza
-- [ ] `scripts/deploy.sh`: eliminar o reducir a render.
-- [ ] `.gitignore`: añadir `infra/tmp/`; borrar `temp/`.
-- [ ] Reescribir `CONTRIBUTING.md` acorde a la realidad (sin kind/unit tests).
-- [ ] Activar Renovate con la config de [updates.md](updates.md).
+- [x] `scripts/deploy.sh` eliminado.
+- [x] `.gitignore` ya cubre `infra/tmp/`; `temp/`, `infra/envs/common/` e
+      `infra/rendered/` eliminados.
+- [x] `CONTRIBUTING.md` reescrito acorde a la realidad.
+- [x] Renovate configurado (`renovate.json5` + anotaciones en `versions.env`).
+      Falta instalar la GitHub App en el repo.
 - [ ] Evaluar `ApplicationSet`/Applications por app vs la `Application` monolítica.
 - [ ] A futuro: consolidar routing hacia solo Gateway API.
 
-### <a id="limpieza"></a>Limpieza inmediata (bajo riesgo)
-```bash
-# Añadir a .gitignore:  infra/tmp/
-rmdir temp 2>/dev/null || true
-```
-
-### <a id="deuda-técnica"></a>Nota sobre la deuda técnica de versiones
-La triple fuente de versión (`versions.env` + `argocd-root.yaml` +
-`argocd-minikube.yaml`) es la deuda con más impacto: rompe DRY, invita al drift
-prod/local y **bloquea** la automatización de updates. Atacarla primero
-desbloquea varios puntos del backlog a la vez.
+### <a id="deuda-técnica"></a>Nota sobre la deuda técnica de versiones (RESUELTA)
+La triple fuente de versión era peor que deuda: los `env:` de la Application
+llegan al plugin prefijados como `ARGOCD_ENV_*`, así que los pins **nunca
+aplicaban** vía ArgoCD (renderizaba "latest"). Resuelto haciendo que el comando
+`generate` del plugin haga `source versions.env` del checkout: fuente única,
+pins efectivos y Renovate desbloqueado.

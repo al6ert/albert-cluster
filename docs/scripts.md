@@ -8,7 +8,6 @@ Resumen de cada script ejecutable del repo: qué hace, cuándo usarlo y veredict
 | [`scripts/bootstrap-prod.sh`](#scriptsbootstrap-prodsh) | Una vez, al crear el cluster de prod | ✅ Necesario |
 | [`scripts/generate-credentials.sh`](#scriptsgenerate-credentialssh) | Crear/rotar secretos | ✅ Punto único de secretos |
 | [`tests/smoke.sh`](#testssmokesh) | Tras desplegar, validar | ✅ Útil |
-| [`scripts/deploy.sh`](#scriptsdeploysh) | — | ⚠️ **Redundante / ambiguo** |
 
 ---
 
@@ -57,32 +56,9 @@ WAIT_TIMEOUT=60s ./tests/smoke.sh   # más margen en máquinas lentas
 
 ---
 
-## `scripts/deploy.sh` — ⚠️ redundante
-
-Hace tres cosas que ya están cubiertas en otro sitio:
-
-1. **Validar** manifiestos (`helmfile template` + lint) → ya lo hace la **CI**.
-2. **Desplegar con Helmfile directo** en `minikube`/`netcup` → en local lo cubre
-   `deploy-local.sh`; en prod **contradice el GitOps puro** (un `helmfile apply`
-   manual a netcup se saldría del control de ArgoCD).
-3. **Disparar sync de ArgoCD** (`argocd app sync`/kubectl patch) → ya lo hace el
-   job `promote-prod` de la CI.
-
-**Recomendación:** elegir una de dos:
-
-- **Eliminarlo** (lo más limpio: nada depende de él).
-- O **reducirlo a "render/validate"** local (solo `helmfile template` + lint),
-  renombrándolo a algo como `scripts/render.sh`, y quitar las rutas de `apply`
-  directo a netcup y de sync.
-
-No tiene referencias desde la CI ni desde otros scripts (solo aparece en el
-README como alternativa), así que retirarlo es de bajo riesgo.
-
----
-
 ## Higiene relacionada
 
-- `infra/tmp/` acumula manifiestos renderizados (varios MB). No está trackeado en
-  Git pero **no está en `.gitignore`** → añádelo para evitar commits accidentales.
-- `temp/` está vacío y sin uso → se puede borrar.
-- Ver [assessment.md](assessment.md#limpieza) para la lista completa de limpieza.
+- `infra/tmp/` acumula manifiestos renderizados en local (está en `.gitignore`;
+  bórralo cuando ocupe demasiado).
+- `scripts/deploy.sh` y `temp/` **eliminados** (redundante/anti-GitOps y vacío,
+  respectivamente).

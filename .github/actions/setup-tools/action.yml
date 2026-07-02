@@ -64,7 +64,7 @@ runs:
       run: |
         VERSION="${{ steps.versions.outputs.kubeseal-version }}"
         STRIPPED_VERSION="${VERSION#v}"
-        curl -sSL "https://github.com/bitnami-labs/sealed-secrets/releases/download/${VERSION}/kubeseal-${STRIPPED_VERSION}-linux-amd64.tar.gz" \
+        curl -sSL "https://github.com/bitnami/sealed-secrets/releases/download/${VERSION}/kubeseal-${STRIPPED_VERSION}-linux-amd64.tar.gz" \
           -o kubeseal.tar.gz
         tar -xzvf kubeseal.tar.gz
         sudo mv kubeseal /usr/local/bin/kubeseal

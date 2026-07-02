@@ -5,15 +5,18 @@
 # y HTTPRoute en extraManifests para grafana. TLS termina en el Gateway con el
 # certificado wildcard *.albertperez.dev.
 
+# Dimensionado para un VPS de un nodo: retención corta y discos contenidos.
+# Subir retention/storage cuando haya apps reales que observar.
+
 grafana:
   enabled: true
   # Credenciales en el Secret grafana-admin (SealedSecret); ver
-  # scripts/generate-credentials.sh y docs/README "Gestión de secretos".
+  # scripts/generate-credentials.sh y docs/secrets.md.
   admin:
     existingSecret: grafana-admin
   persistence:
     enabled: true
-    size: 10Gi
+    size: 5Gi
 
 prometheus:
   enabled: true
@@ -27,27 +30,30 @@ prometheus:
           namespace: traefik
           sectionName: websecure
   prometheusSpec:
-    retention: 30d
+    retention: 15d
     storageSpec:
       volumeClaimTemplate:
         spec:
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
-              storage: 50Gi
+              storage: 20Gi
     resources:
       requests:
-        memory: 2Gi
-        cpu: 500m
+        memory: 1Gi
+        cpu: 250m
       limits:
-        memory: 4Gi
-        cpu: 2000m
+        memory: 2Gi
+        cpu: 1000m
 
+# FIXME: Alertmanager no tiene receptores configurados (las alertas no llegan
+# a ningún sitio). Configurar email/Telegram/Slack en alertmanager.config o
+# valorar desactivarlo hasta entonces.
 alertmanager:
   enabled: true
   persistence:
     enabled: true
-    size: 10Gi
+    size: 2Gi
   route:
     main:
       enabled: true

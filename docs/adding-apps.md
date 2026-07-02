@@ -81,17 +81,17 @@ Si el chart upstream no soporta `HTTPRoute` nativo, añádelo vía
 `infra/envs/netcup/prometheus-values.yaml`) o como manifiesto suelto en el chart
 local.
 
-### 5. Versión en TODOS los sitios (¡importante!)
+### 5. Versión en `versions.env` (único sitio)
 
-La versión del chart se declara en **tres** lugares que deben coincidir:
+```bash
+# renovate: datasource=helm depName=miapp registryUrl=https://charts.ejemplo.io
+export MIAPP_CHART_VERSION="1.2.3"
+```
 
-1. `versions.env` → `export MIAPP_CHART_VERSION="1.2.3"`
-2. `infra/bootstrap/argocd-root.yaml` → `env:` del plugin (producción)
-3. `infra/bootstrap/argocd-minikube.yaml` → `env:` del plugin (local)
-
-> Esta triplicación es deuda técnica conocida (ver
-> [assessment.md](assessment.md)). Hasta que se resuelva, **actualiza los tres**
-> o ArgoCD usará una versión distinta de la que renderiza Helmfile en local.
+El plugin de ArgoCD hace `source versions.env` del checkout, y los scripts/CI
+también, así que **no hay que duplicar la versión en ningún otro fichero**. La
+línea `# renovate:` es opcional pero recomendada: permite que Renovate proponga
+actualizaciones (ver [updates.md](updates.md)).
 
 ### 6. DNS
 
@@ -115,7 +115,7 @@ el registro. En local, `nip.io` resuelve automáticamente.
 - [ ] Línea añadida en `infra/apps/helmfile.yaml` (sync-wave correcta)
 - [ ] `values.yaml` base + `infra/envs/{minikube,netcup}/<app>-values.yaml`
 - [ ] `HTTPRoute` al Gateway `traefik-gateway`
-- [ ] Versión en `versions.env` **y** en los dos `argocd-*.yaml`
+- [ ] Versión en `versions.env` (con anotación `# renovate:`)
 - [ ] DNS (wildcard ya cubre, o registro nuevo)
 - [ ] `securityContext` endurecido (runAsNonRoot, drop ALL caps, readOnlyRootFilesystem)
 - [ ] `resources` (requests/limits) definidos

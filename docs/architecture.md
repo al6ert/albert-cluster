@@ -25,9 +25,11 @@ mano en producción: ArgoCD observa el repo y reconcilia el cluster.
   No hay manifiestos renderizados versionados; ArgoCD renderiza en vivo.
 - **Helmfile** combina, por cada app, su chart upstream + `values.yaml` base +
   `infra/envs/<entorno>/<app>-values.yaml`.
-- **Versiones de chart**: inyectadas como variables de entorno al plugin desde
-  `infra/bootstrap/argocd-root.yaml` (netcup) y `argocd-minikube.yaml` (dev).
-  La fuente de verdad es [`versions.env`](../versions.env).
+- **Versiones de chart**: fuente única en [`versions.env`](../versions.env). El
+  plugin hace `source versions.env` del propio checkout antes de renderizar, así
+  que Git manda también en las versiones. (Nota: inyectarlas como `env:` de la
+  Application **no** funciona — ArgoCD las prefija como `ARGOCD_ENV_*` y helmfile
+  no las vería.)
 
 ## Ramas y entornos
 

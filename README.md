@@ -74,7 +74,7 @@ albert-cluster/
 
 [ArgoCD](https://argo-cd.readthedocs.io/) ·
 [Helmfile](https://helmfile.readthedocs.io/) ·
-[Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) ·
+[Sealed Secrets](https://github.com/bitnami/sealed-secrets) ·
 [cert-manager](https://cert-manager.io/) ·
 [Traefik](https://doc.traefik.io/traefik/) ·
 [Gateway API](https://gateway-api.sigs.k8s.io/)

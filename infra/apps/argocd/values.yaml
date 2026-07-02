@@ -6,10 +6,8 @@ crds:
 server:
   service:
     type: ClusterIP
-  # Necesario: configs.params.create=false (values-helmfile.yaml.gotmpl) hace
-  # que argocd-cmd-params-cm no exista, así que server.insecure de ahí no
-  # aplica; este flag es lo único que pone el server en modo insecure para que
-  # el Gateway/Traefik termine TLS.
+  # Cinturón y tirantes con configs.params.server.insecure=true (el server
+  # también lo lee del argocd-cmd-params-cm): el Gateway/Traefik termina TLS.
   extraArgs:
     - --insecure
 

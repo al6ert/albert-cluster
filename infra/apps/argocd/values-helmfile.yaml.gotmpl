@@ -1,16 +1,15 @@
 configs:
+  # argocd-cmd-params-cm: los componentes leen de aquí sus flags (vía envs
+  # ARGOCD_<COMPONENTE>_*). Es la vía canónica de configurarlos.
   params:
-    create: false # Define estructura vacía para evitar nil pointer en templates
-    server.insecure: true
+    create: true
+    server.insecure: true # Traefik/Gateway termina TLS
     application.namespaces: "*" # Permite gestionar aplicaciones en todos los namespaces
-
-# El render de helmfile descarga todos los charts en el primer uso y supera
-# los 60s por defecto; sin estos timeouts el primer sync tras reiniciar el
-# repo-server falla con DeadlineExceeded hasta que la caché se calienta.
-controller:
-  env:
-    - name: ARGOCD_REPO_SERVER_TIMEOUT_SECONDS
-      value: "300"
+    # El render de helmfile supera los 60s por defecto con caché fría (deps +
+    # descarga de charts); sin esto las peticiones de controller/server al
+    # repo-server mueren con DeadlineExceeded tras reiniciar el repo-server.
+    controller.repo.server.timeout.seconds: "300"
+    server.repo.server.timeout.seconds: "300"
 
 repoServer:
   env:

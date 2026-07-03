@@ -89,17 +89,21 @@ extraObjects:
           init:
             # Debe correr con las MISMAS versiones que generate (source de
             # versions.env); si no, deps resuelve otras versiones y el
-            # template --skip-deps falla con "no resolved dependency found"
+            # template --skip-deps falla con "no resolved dependency found".
+            # versions.env se busca hacia arriba desde el cwd (walk-up) para
+            # que el plugin funcione con Applications apuntando a cualquier
+            # profundidad del repo (infra/apps o infra/apps/<app>).
             command: ["sh", "-c"]
-            args: ["set -a && . ../../versions.env && set +a && helmfile --environment \"${ARGOCD_ENV_HELMFILE_ENVIRONMENT:-$HELMFILE_ENVIRONMENT}\" deps"]
+            args: ["d=\"$PWD\"; while [ \"$d\" != \"\" ] && [ ! -f \"$d/versions.env\" ]; do d=\"${d%/*}\"; done; set -a && . \"$d/versions.env\" && set +a && helmfile --environment \"${ARGOCD_ENV_HELMFILE_ENVIRONMENT:-$HELMFILE_ENVIRONMENT}\" deps"]
           generate:
             command: ["sh", "-c"]
             # - Fuente única de versiones: source de versions.env del propio
-            #   checkout (ArgoCD prefija los env de la Application como
-            #   ARGOCD_ENV_*, así que inyectar versiones por ahí NO funciona).
+            #   checkout, localizado con walk-up (ArgoCD prefija los env de la
+            #   Application como ARGOCD_ENV_*, así que inyectar versiones por
+            #   ahí NO funciona).
             # - stdout debe contener SOLO manifests; stderr se deja fluir para
             #   que los errores de render sean visibles en los logs del CMP.
-            args: ["set -a && . ../../versions.env && set +a && HF_ENV=\"${ARGOCD_ENV_HELMFILE_ENVIRONMENT:-$HELMFILE_ENVIRONMENT}\" && helmfile --environment \"$HF_ENV\" repos >/dev/null && rm -rf /tmp/helmfile-output && mkdir -p /tmp/helmfile-output && helmfile --environment \"$HF_ENV\" template --skip-deps --output-dir /tmp/helmfile-output >/dev/null && find /tmp/helmfile-output -type f -name '*.yaml' -print0 | xargs -0 cat"]
+            args: ["d=\"$PWD\"; while [ \"$d\" != \"\" ] && [ ! -f \"$d/versions.env\" ]; do d=\"${d%/*}\"; done; set -a && . \"$d/versions.env\" && set +a && HF_ENV=\"${ARGOCD_ENV_HELMFILE_ENVIRONMENT:-$HELMFILE_ENVIRONMENT}\" && helmfile --environment \"$HF_ENV\" repos >/dev/null && rm -rf /tmp/helmfile-output && mkdir -p /tmp/helmfile-output && helmfile --environment \"$HF_ENV\" template --skip-deps --output-dir /tmp/helmfile-output >/dev/null && find /tmp/helmfile-output -type f -name '*.yaml' -print0 | xargs -0 cat"]
           discover:
             command: ["true"]
 

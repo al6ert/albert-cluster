@@ -1,0 +1,65 @@
+# ApplicationSet de PRODUCCIÓN (netcup, rama main).
+# Genera una Application de ArgoCD por cada infra/apps/<app>/app.yaml
+# (git files generator): crear la carpeta con app.yaml = la app aparece;
+# borrarla = ArgoCD la poda (finalizer + prune).
+#
+# Gemelo de appset-minikube.yaml — solo difieren revision/targetRevision,
+# HELMFILE_ENVIRONMENT y el label cluster. NUNCA aplicar ambos en el mismo
+# cluster. Lo aplica scripts/bootstrap-prod.sh (una vez); después se
+# gestiona editando este fichero y re-aplicándolo (no se auto-gestiona).
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-apps
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/al6ert/albert-cluster.git
+        revision: main
+        files:
+          - path: infra/apps/*/app.yaml
+  template:
+    metadata:
+      name: '{{.name}}'
+      labels:
+        cluster: netcup   # la CI hace sync/wait por este label
+      annotations:
+        # Documental: el orden real de arranque lo da el bootstrap por script
+        # y el helmfile raíz; en día-2 lo resuelven retry + reconciliación.
+        argocd.argoproj.io/sync-wave: '{{.wave}}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{.namespace}}'
+      source:
+        repoURL: https://github.com/al6ert/albert-cluster.git
+        targetRevision: main
+        path: '{{.path.path}}'
+        plugin:
+          name: helmfile
+          env:
+            # Las versiones de chart NO van aquí: el plugin hace source de
+            # versions.env del checkout (ArgoCD prefija estos env como
+            # ARGOCD_ENV_* y helmfile no los vería).
+            - name: HELMFILE_ENVIRONMENT
+              value: netcup
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          limit: 5
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m
+        syncOptions:
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground
+          - PruneLast=true

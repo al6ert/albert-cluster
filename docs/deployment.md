@@ -37,8 +37,9 @@ minikube start --driver=docker --kubernetes-version=${KUBERNETES_VERSION}
 5. Habilita **metallb** como LoadBalancer (rango derivado de `minikube ip`), para
    que el `Service` de Traefik obtenga IP sin `minikube tunnel`.
 6. Aplica el resto de apps con Helmfile (`--selector name!=sealed-secrets`).
-7. Aplica la Application de ArgoCD `cluster-minikube` (si
-   `DEPLOY_ARGOCD_APPS=true`, que es el default).
+7. Aplica el ApplicationSet de ArgoCD `cluster-apps` (si
+   `DEPLOY_ARGOCD_APPS=true`, que es el default) — genera una Application
+   por cada `infra/apps/<app>/app.yaml`.
 8. Imprime URLs y credenciales generadas.
 
 > Variable útil: `DEPLOY_ARGOCD_APPS=false ./deploy-local.sh` despliega solo con
@@ -85,8 +86,10 @@ git commit -m 'chore: rotate sealed secrets'
 
 `bootstrap-prod.sh` aplica CRDs/namespaces/RBAC/middlewares, instala los
 componentes core en orden (cert-manager → sealed-secrets → traefik → argocd),
-aplica los `*-sealed.yaml` y finalmente crea la Application raíz `cluster-root`.
-A partir de aquí, **ArgoCD se encarga de todo**.
+aplica los `*-sealed.yaml` y finalmente crea el ApplicationSet `cluster-apps`
+(`infra/bootstrap/appset-netcup.yaml`), que genera **una Application por app**
+a partir de los `infra/apps/<app>/app.yaml`. A partir de aquí, **ArgoCD se
+encarga de todo**.
 
 ### Flujo del día a día (GitOps)
 
@@ -117,3 +120,37 @@ la rama `dev` (que despliega contra minikube en CI) o `argocd app diff`.
 
 Concurrencia con `cancel-in-progress` para no solapar runs. Permisos mínimos
 (`contents: read`).
+
+---
+
+## Cutover al modelo per-app (una sola vez por cluster)
+
+Los clusters que aún corran la Application monolítica (`cluster-minikube` /
+`cluster-root`) se migran así — la monolítica tiene `prune: true` +
+finalizer, **no borrarla a las bravas**:
+
+```bash
+# 1. Desactivar su auto-sync
+kubectl -n argocd patch application <cluster-monolítica> --type merge \
+  -p '{"spec":{"syncPolicy":{"automated":null}}}'
+
+# 2. Borrarla SIN cascada (los recursos quedan huérfanos e intactos)
+kubectl -n argocd patch application <cluster-monolítica> --type json \
+  -p '[{"op":"remove","path":"/metadata/finalizers"}]'
+kubectl -n argocd delete application <cluster-monolítica>
+
+# 3. Aplicar el ApplicationSet del entorno
+kubectl apply -f infra/bootstrap/appset-<entorno>.yaml
+
+# 4. Verificar: las Applications adoptan sus recursos (el OutOfSync inicial
+#    es solo el re-etiquetado del tracking label, no un cambio real)
+kubectl get applications -n argocd -l cluster=<entorno>
+./tests/smoke.sh
+```
+
+**Rollback**: borrar el ApplicationSet protegiendo los recursos (quitar antes
+los finalizers de las Applications hijas) y re-aplicar el yaml antiguo
+(`argocd-root.yaml` / `argocd-minikube.yaml`, conservados un ciclo como
+respaldo). Hacer el cutover de producción fuera de una ventana de deploy: el
+`promote-prod` de CI ya opera por label `cluster=netcup` y fallaría con la
+monolítica.

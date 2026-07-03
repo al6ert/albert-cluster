@@ -178,8 +178,8 @@ EOF
 
     echo "::group::Phase 3: ArgoCD Applications (optional for local)"
     if [[ "${DEPLOY_ARGOCD_APPS:-true}" == "true" ]]; then
-        kubectl apply -f argocd-minikube.yaml --validate=false
-        echo "✅ ArgoCD applications applied"
+        kubectl apply -f appset-minikube.yaml --validate=false
+        echo "✅ ArgoCD ApplicationSet applied"
     else
         echo "⚠️ Skipping ArgoCD applications (DEPLOY_ARGOCD_APPS=false)"
     fi

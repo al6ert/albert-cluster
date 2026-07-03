@@ -1,3 +1,6 @@
+# ⚠️ DEPRECADO — sustituido por appset-minikube.yaml (una Application por
+# app). Se conserva un ciclo solo como rollback del cutover; NO aplicar en
+# clusters nuevos. Procedimiento de cutover/rollback: docs/deployment.md.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

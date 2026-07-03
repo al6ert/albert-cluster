@@ -29,6 +29,27 @@ runs:
       run: |
         yamllint -c .yamllint.yml .
 
+    - name: Check app registration (app.yaml + helmfile raíz)
+      shell: bash
+      run: |
+        # Toda app debe estar en el doble registro: app.yaml (la descubre el
+        # ApplicationSet) y helmfile raíz (la renderizan deploy-local/CI).
+        status=0
+        for d in infra/apps/*/; do
+          app=$(basename "$d")
+          [ -f "${d}helmfile.yaml.gotmpl" ] || continue
+          if ! grep -q "\./${app}/helmfile.yaml.gotmpl" infra/apps/helmfile.yaml; then
+            echo "::error::${app} tiene helmfile pero falta en infra/apps/helmfile.yaml"
+            status=1
+          fi
+          if [ ! -f "${d}app.yaml" ]; then
+            echo "::error::${app} sin app.yaml (el ApplicationSet no la desplegará)"
+            status=1
+          fi
+        done
+        [ "$status" -eq 0 ] && echo "✅ Registro de apps consistente (app.yaml + helmfile raíz)"
+        exit $status
+
     - name: Render manifests for validation
       shell: bash
       working-directory: ${{ inputs.working-directory }}

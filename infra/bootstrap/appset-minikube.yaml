@@ -1,0 +1,55 @@
+# ApplicationSet de LOCAL/CI (minikube, rama dev).
+# Gemelo de appset-netcup.yaml — solo difieren revision/targetRevision,
+# HELMFILE_ENVIRONMENT y el label cluster. NUNCA aplicar ambos en el mismo
+# cluster. Lo aplican deploy-local.sh y dev-ci.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-apps
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/al6ert/albert-cluster.git
+        revision: dev
+        files:
+          - path: infra/apps/*/app.yaml
+  template:
+    metadata:
+      name: '{{.name}}'
+      labels:
+        cluster: minikube
+      annotations:
+        argocd.argoproj.io/sync-wave: '{{.wave}}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{.namespace}}'
+      source:
+        repoURL: https://github.com/al6ert/albert-cluster.git
+        targetRevision: dev
+        path: '{{.path.path}}'
+        plugin:
+          name: helmfile
+          env:
+            - name: HELMFILE_ENVIRONMENT
+              value: minikube
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          limit: 5
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m
+        syncOptions:
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground
+          - PruneLast=true

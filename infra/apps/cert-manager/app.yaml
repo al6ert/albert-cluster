@@ -1,0 +1,5 @@
+# Descubierto por el ApplicationSet (git files generator).
+# Crear este fichero = la app aparece en ArgoCD; borrarlo = se poda.
+name: cert-manager
+namespace: cert-manager   # destination.namespace de la Application
+wave: "0"       # documental: orden de bootstrap / helmfile raíz

@@ -81,15 +81,16 @@ for required in grafana-admin-sealed.yaml admin-basic-auth-sealed.yaml cloudflar
     fi
 done
 
-# 5. Create the root ArgoCD Application (GitOps entry point for netcup)
-echo "🎯 Applying root ArgoCD Application (cluster-root)..."
-kubectl apply -f argocd-root.yaml
+# 5. Create the ArgoCD ApplicationSet (GitOps entry point for netcup):
+#    genera una Application por cada infra/apps/<app>/app.yaml
+echo "🎯 Applying ArgoCD ApplicationSet (cluster-apps)..."
+kubectl apply -f appset-netcup.yaml
 
 # 6. Final Status
 echo ""
 echo "✅ Bootstrap completed successfully!"
 echo "ArgoCD should now be running. You can verify with:"
 echo "  kubectl get pods -n argocd"
-echo "  kubectl get application cluster-root -n argocd"
+echo "  kubectl get applications -n argocd -l cluster=netcup"
 echo ""
 echo "The CI pipeline should now be able to connect and sync."

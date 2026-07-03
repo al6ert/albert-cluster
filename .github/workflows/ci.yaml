@@ -159,24 +159,31 @@ jobs:
           echo "✅ ArgoCD login successful"
           echo "::endgroup::"
 
-          echo "::group::ArgoCD diff"
-          # exit 0 = sin cambios, 1 = hay diff (esperado), otro = error real
-          diff_status=0
-          argocd app diff cluster-root --grpc-web || diff_status=$?
-          if [ "$diff_status" -eq 1 ]; then
-            echo "::notice::ArgoCD diff detected changes, proceeding with sync"
-          elif [ "$diff_status" -ne 0 ]; then
-            echo "::error::ArgoCD diff failed with status $diff_status"
-            exit "$diff_status"
+          echo "::group::ArgoCD diff (por app, informativo)"
+          apps=$(argocd app list -l cluster=netcup -o name --grpc-web)
+          if [ -z "$apps" ]; then
+            echo "::error::No hay Applications con label cluster=netcup (¿cutover del ApplicationSet pendiente?)"
+            exit 1
           fi
+          for app in $apps; do
+            # exit 0 = sin cambios, 1 = hay diff (esperado), otro = error real
+            diff_status=0
+            argocd app diff "$app" --grpc-web || diff_status=$?
+            if [ "$diff_status" -eq 1 ]; then
+              echo "::notice::${app}: cambios detectados"
+            elif [ "$diff_status" -ne 0 ]; then
+              echo "::error::${app}: diff falló con status $diff_status"
+              exit "$diff_status"
+            fi
+          done
           echo "::endgroup::"
 
           echo "::group::ArgoCD sync"
-          argocd app sync cluster-root --prune --grpc-web
+          argocd app sync -l cluster=netcup --prune --grpc-web
           echo "::endgroup::"
 
-          echo "::group::Wait for health"
-          argocd app wait cluster-root --health --timeout 300 --grpc-web
+          echo "::group::Wait for health (gate post-sync)"
+          argocd app wait -l cluster=netcup --health --timeout 600 --grpc-web
           echo "✅ ArgoCD sync completed successfully"
           echo "::endgroup::"
 

@@ -198,8 +198,8 @@ jobs:
           }
           echo "::endgroup::"
 
-          echo "::group::Phase 9: Apply ArgoCD Apps"
-          kubectl apply -f argocd-minikube.yaml
+          echo "::group::Phase 9: Apply ArgoCD ApplicationSet"
+          kubectl apply -f appset-minikube.yaml
           echo "::endgroup::"
 
       - name: Validate Manifests (minikube)

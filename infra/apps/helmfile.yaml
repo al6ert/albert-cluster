@@ -1,5 +1,11 @@
 # infra/apps/helmfile.yaml
-# Helmfile raíz que incluye todas las aplicaciones
+# Helmfile raíz que incluye todas las aplicaciones.
+#
+# Lo usan deploy-local.sh, bootstrap-prod.sh y validate-manifests (render/
+# lint/diff del entorno completo). ArgoCD ya NO lo usa: cada Application
+# apunta a infra/apps/<app>/ (ver infra/bootstrap/appset-*.yaml); el
+# ApplicationSet descubre las apps por su app.yaml. La CI comprueba que
+# toda app esté registrada en AMBOS sitios.
 
 environments:
   minikube:

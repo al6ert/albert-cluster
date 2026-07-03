@@ -110,7 +110,11 @@ extraObjects:
             #   ahí NO funciona).
             # - stdout debe contener SOLO manifests; stderr se deja fluir para
             #   que los errores de render sean visibles en los logs del CMP.
-            args: ["d=\"$PWD\"; while [ \"$d\" != \"\" ] && [ ! -f \"$d/versions.env\" ]; do d=\"${d%/*}\"; done; set -a && . \"$d/versions.env\" && set +a && HF_ENV=\"${ARGOCD_ENV_HELMFILE_ENVIRONMENT:-$HELMFILE_ENVIRONMENT}\" && helmfile --environment \"$HF_ENV\" repos >/dev/null && rm -rf /tmp/helmfile-output && mkdir -p /tmp/helmfile-output && helmfile --environment \"$HF_ENV\" template --skip-deps --output-dir /tmp/helmfile-output >/dev/null && find /tmp/helmfile-output -type f -name '*.yaml' -print0 | xargs -0 cat"]
+            # - output-dir ÚNICO por invocación (mktemp): con una Application
+            #   por app hay renders CONCURRENTES en el mismo sidecar; un dir
+            #   fijo compartido hace que un render pise/lea el de otro (apps
+            #   sincronizando manifests ajenos).
+            args: ["d=\"$PWD\"; while [ \"$d\" != \"\" ] && [ ! -f \"$d/versions.env\" ]; do d=\"${d%/*}\"; done; set -a && . \"$d/versions.env\" && set +a && HF_ENV=\"${ARGOCD_ENV_HELMFILE_ENVIRONMENT:-$HELMFILE_ENVIRONMENT}\" && out=$(mktemp -d /tmp/helmfile-output.XXXXXX) && trap 'rm -rf \"$out\"' EXIT && helmfile --environment \"$HF_ENV\" repos >/dev/null && helmfile --environment \"$HF_ENV\" template --skip-deps --output-dir \"$out\" >/dev/null && find \"$out\" -type f -name '*.yaml' -print0 | xargs -0 cat"]
           discover:
             command: ["true"]
 

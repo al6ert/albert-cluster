@@ -17,8 +17,8 @@ lecturas: la nota **actual** y la nota al completar los
 | 1 | Arquitectura GitOps | **9,0** | | ApplicationSet per-app (salud/sync granular, alta por carpeta), CMP robusto (walk-up, sin races), CRDs en bootstrap. |
 | 2 | Mantenibilidad / DRY | **8,5** | | Pins efectivos en TODAS las vías (plugin, scripts y ahora también CI); queda la convivencia de 3 providers de Traefik. |
 | 3 | Seguridad (postura) | **7,5** | 8,0 | PSS enforce por namespace (verificado), quotas+LimitRange, netpol declaradas; el CNI (flannel) no las aplica aún. |
-| 4 | Operabilidad Day-2 | **5,5** | 8,5 | Velero+runbook+escrow diseñados y commiteados, pero NO operativos: falta bucket R2, escrow real y drill. Certs kubeadm caducados = incidente activo. |
-| 5 | Fiabilidad / HA | **5,5** | 6,5 | Single-node documentado como asunción; retry en syncs; sin Jobs-hook frágiles. El incidente de certs demuestra el riesgo pendiente. |
+| 4 | Operabilidad Day-2 | **6,0** | 8,5 | Certs renovados y runbook probado en el incidente real; Velero listo pero inactivo hasta el bucket R2; drill pendiente. |
+| 5 | Fiabilidad / HA | **6,5** | | Single-node documentado; incidente de certs resuelto (válidos hasta 2027) y GitOps de prod descongelado tras 6 meses. |
 | 6 | Observabilidad | **5,5** | 8,5 | Modelo Alloy→Grafana Cloud listo en el repo (alertas+synthetic fuera del nodo); inactivo hasta crear la cuenta. Mientras, kps sigue sin receptores. |
 | 7 | Coste / eficiencia | **7,0** | 8,0 | VPS holgado (8vCPU/16GB/1TB al 3%); la retirada de kps (~27Gi+2Gi RAM) está preparada y gateada. |
 | 8 | Preparación para apps propias | **8,0** | | new-app.sh + PSS restricted por defecto + quotas + patrón netpol + checklist; falta solo estrategia de storage para la primera app con estado. |
@@ -26,10 +26,10 @@ lecturas: la nota **actual** y la nota al completar los
 | 10 | Gestión de dependencias | **7,5** | 8,5 | 4 charts nuevos anotados para Renovate; regla 7 días respetada al elegir versiones; App de GitHub sin confirmar. |
 | 11 | Developer experience | **9,0** | | Alta de app = 1 script + push; loop local idempotente; nip.io; smoke tests. |
 | 12 | Documentación | **9,0** | | observability.md y runbook DR nuevos, adding-apps.md reescrito, entorno prod verificado y documentado, rúbrica viva. |
-| 13 | Reproducibilidad | **7,0** | 9,0 | Runbook completo + doble backup de la clave sealed-secrets diseñado; sigue faltando el sellado de argocd-redis (prod inaccesible) y el drill. |
+| 13 | Reproducibilidad | **8,5** | 9,0 | argocd-redis sellado y commiteado, claves exportadas, runbook completo, prod reconstruible y al día con los pins. Falta el drill. |
 | 14 | Higiene del repo | **8,5** | | CHANGELOG-plantilla eliminado; árbol limpio; scripts todos justificados. |
 
-**Media: ~7,5/10 (≈8,3 al cerrar los pendientes manuales).** El salto viene de
+**Media: ~7,9/10 (≈8,3 al activar observabilidad y backups).** El salto viene de
 convertir debilidades estructurales (monolito, sin backups, sin runbooks, CI
 sin pins) en mecanismos verificados. Lo que queda es **operacional**, no de
 diseño: 6 pasos manuales listados abajo.
@@ -47,25 +47,41 @@ diseño: 6 pasos manuales listados abajo.
 | CI hardcode + pins no aplicados | `versions.env` completo exportado al job (la validación renderizaba **sin pins** = latest — bug real heredado), guard app.yaml↔helmfile raíz, namespaces por subconjunto, promote-prod por label con `app wait --health`. |
 | Reproducibilidad 5,5: argocd-redis sin sellar | Pendiente de prod (ver abajo): el API server tiene los **certificados kubeadm caducados desde 2026-06-29** — incidente descubierto en la fase 0. Los workloads siguen sirviendo. |
 
-## <a id="pendiente-manual"></a>Pendiente manual (en orden)
+## <a id="pendiente-manual"></a>Estado del cierre (actualizado tras el cutover de prod, 2026-07-03 tarde)
 
-1. 🔴 **Renovar los certificados de kubeadm** (el API de prod es inaccesible):
-   `ssh netcup` → backup `/etc/kubernetes` → `kubeadm certs renew all` →
-   reiniciar plano de control → refrescar kubeconfig local. Comandos exactos
-   en el [runbook](runbooks/disaster-recovery.md).
-2. 🔴 **Escrow de la clave sealed-secrets** al gestor de contraseñas
-   ([secrets.md](secrets.md)).
-3. 🔴 **Sellar y commitear `argocd-redis`** con el password vivo
-   (`ARGOCD_REDIS_PASSWORD=$(kubectl get secret argocd-redis -n argocd -o jsonpath='{.data.auth}' | base64 -d) ./scripts/generate-credentials.sh --component argocd-redis`).
-4. 🟠 **Cuenta Grafana Cloud** + URLs reales + `--component grafana-cloud` +
-   contact point Telegram + synthetic checks ([observability.md](observability.md)).
-5. 🟠 **Bucket R2** + token S3 scoped + `--component velero`.
-6. 🟠 **Cutover de producción** al ApplicationSet (procedimiento probado en
-   minikube: [deployment.md](deployment.md#cutover-al-modelo-per-app-una-sola-vez-por-cluster)),
-   promocionar `dev → main`, y tras validar Grafana Cloud: retirar
-   kube-prometheus-stack (PR preparado conceptualmente, ver apps.md).
-7. 🟡 Confirmar la **Renovate GitHub App**; ejecutar y anotar el **drill de DR**;
-   decidir **CNI con enforcement** (Cilium/Calico) si se quiere red aplicada.
+**Hecho el 2026-07-03 (tarde):**
+- ✅ Certificados de kubeadm renovados (válidos hasta 2027-07-03; backup de
+  `/etc/kubernetes` en `/root/k8s-pki-backup-*.tar.gz` del VPS) y kubeconfig
+  local refrescado.
+- ✅ **Hallazgo mayor durante el cutover: el GitOps de prod llevaba ~6 meses
+  congelado** — el ConfigMap del plugin CMP nunca existió en prod (la trampa
+  conocida de extraObjects) y el repo-server arrastraba un rollout atascado
+  desde hacía 169 días; todos los charts seguían en las versiones del
+  bootstrap (dic-2025) y prometheus/Gateway API nunca llegaron a desplegarse.
+- ✅ Cutover de producción completado: argo-cd 8.1.3→9.5.21 por helm (única
+  intervención manual), resto vía ApplicationSet — **9/9 Applications
+  Synced+Healthy**, traefik 37→40.3 con Gateway API servido en vivo
+  (hello/argo 200 vía HTTPRoute, wildcard Ready), cert-manager 1.20.2,
+  hello endurecido (PSS restricted cumplido), policies aplicadas.
+- ✅ `argocd-redis-sealed.yaml` sellado con el password vivo y commiteado.
+- ✅ Claves del controller sealed-secrets exportadas (8 claves) a
+  `~/sealed-secrets-keys-netcup-20260703.yaml` — **falta guardarlas en el
+  gestor de contraseñas y borrar el archivo**.
+- ✅ Flags `MONITORING_ENABLED`/`VELERO_ENABLED`/`PROMETHEUS_ENABLED` (=false
+  en prod): las apps sin configuración externa quedan Synced-vacías.
+
+**Pendiente (usuario):**
+1. 🟠 Guardar `~/sealed-secrets-keys-netcup-20260703.yaml` en el gestor de
+   contraseñas y borrar el archivo local.
+2. 🟠 **Cuenta Grafana Cloud** + URLs reales + `--component grafana-cloud` +
+   `MONITORING_ENABLED=true` + contact point Telegram + synthetic checks
+   ([observability.md](observability.md)). Hasta entonces prod está sin
+   observabilidad (como llevaba 6 meses, pero ahora a sabiendas).
+3. 🟠 **Bucket R2** + token S3 scoped + `--component velero` +
+   `VELERO_ENABLED=true`.
+4. 🟡 Confirmar la **Renovate GitHub App**; ejecutar y anotar el **drill de
+   DR**; decidir **CNI con enforcement** (Cilium/Calico); decidir la retirada
+   definitiva de kube-prometheus-stack (hoy solo corre en minikube).
 
 ## Backlog técnico restante
 

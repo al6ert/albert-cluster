@@ -1,6 +1,7 @@
 # infra/envs/netcup/velero-values.yaml
 #
-# ⚠️ PREREQUISITO antes de promocionar a main:
+# ⚠️ La release NO se instala hasta poner VELERO_ENABLED="true" en
+# versions.env. Antes de eso:
 # 1. Crear bucket R2 "albert-cluster-backups" en Cloudflare y un API token
 #    S3 (Object Read & Write) scoped SOLO a ese bucket.
 # 2. Sustituir REPLACE-ME por el account id de Cloudflare.

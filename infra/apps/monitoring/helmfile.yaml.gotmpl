@@ -13,9 +13,10 @@ releases:
     createNamespace: true
     chart: grafana/k8s-monitoring
     version: {{ env "K8S_MONITORING_CHART_VERSION" }}
-    # Solo producción: envía métricas/logs a Grafana Cloud. En minikube no se
-    # instala (no hay credenciales ni sentido: el loop local usa smoke tests).
-    installed: {{ eq .Environment.Name "netcup" }}
+    # Solo producción Y con la cuenta de Grafana Cloud configurada
+    # (MONITORING_ENABLED en versions.env). En minikube no se instala
+    # (no hay credenciales ni sentido: el loop local usa smoke tests).
+    installed: {{ and (eq .Environment.Name "netcup") (eq (env "MONITORING_ENABLED" | default "false") "true") }}
     values:
       - values.yaml
       - ../../envs/{{ .Environment.Name }}/monitoring-values.yaml

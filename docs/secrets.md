@@ -50,20 +50,29 @@ Restauración: [runbook DR](runbooks/disaster-recovery.md) — la clave se aplic
 
 ## `.env.local` (no versionado)
 
-Passwords fijos opcionales. Si no existen, se generan aleatorios (salvo
-Cloudflare, que **exige** token real):
+Único fichero con los valores en claro que `generate-credentials.sh` sella.
+El esquema canónico (con placeholders) vive versionado en
+[`.env.local.example`](../.env.local.example): cópialo a `.env.local` y
+rellénalo. Si una variable falta, su componente genera un valor aleatorio
+(salvo los tokens externos, obligatorios donde se indica).
+
+> **Un solo fichero para los dos entornos.** No hay un `.env` para prod y otro
+> para local: el cluster contra el que se sella lo decide el **contexto de
+> kubectl**, no el fichero (los `SealedSecret` van atados a su cluster). Por eso
+> `deploy-local.sh` sella los dummy locales en un dir temporal con este mismo
+> `.env.local`.
 
 ```bash
-# .env.local  (en .gitignore)
-ADMIN_PASSWORD=...            # usuario admin del basic-auth
-ARGO_PASSWORD=...             # usuario argo del basic-auth (si se usa)
-GRAFANA_ADMIN_PASSWORD=...    # admin de Grafana (kube-prometheus-stack, en retirada)
+# .env.local  (en .gitignore; esquema completo en .env.local.example)
+TRAEFIK_LOGIN=admin          # login del dashboard de Traefik (basic-auth)
+TRAEFIK_PASSWORD=...          # su contraseña
 CLOUDFLARE_API_TOKEN=...      # token DNS de Cloudflare (obligatorio para prod)
-GRAFANA_CLOUD_PROM_USER=...   # id numérico del stack (métricas)
-GRAFANA_CLOUD_LOKI_USER=...   # id numérico del stack (logs)
-GRAFANA_CLOUD_TOKEN=...       # Cloud Access Policy token (metrics:write+logs:write)
-R2_ACCESS_KEY_ID=...          # token S3 de R2 scoped al bucket de backups
-R2_SECRET_ACCESS_KEY=...
+GRAFANA_ADMIN_PASSWORD=...    # admin de Grafana (kube-prometheus-stack; minikube)
+GRAFANA_CLOUD_PROM_USER=...   # id numérico del stack (métricas)   ┐ app monitoring
+GRAFANA_CLOUD_LOKI_USER=...   # id numérico del stack (logs)       │ (solo si
+GRAFANA_CLOUD_TOKEN=...       # Cloud Access Policy token          ┘  MONITORING_ENABLED)
+R2_ACCESS_KEY_ID=...          # token S3 de R2 scoped al bucket    ┐ velero
+R2_SECRET_ACCESS_KEY=...      #                                    ┘ (solo si VELERO_ENABLED)
 ```
 
 ## Rotar un secreto

@@ -140,9 +140,10 @@ apply_bootstrap() {
     # repo (que están sellados contra el cluster de producción)
     LOCAL_SECRETS_DIR=$(mktemp -d)
 
-    # Generate admin-basic-auth using the script (defaults: namespace=admin, users=admin)
+    # Generate admin-basic-auth using the script (el login sale de TRAEFIK_LOGIN
+    # de .env.local, por defecto admin; en minikube el dashboard va sin auth)
     SECRETS_DIR="$LOCAL_SECRETS_DIR" \
-        bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --component basic-auth --namespace admin --users admin --secret-name admin-basic-auth
+        bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --component basic-auth --namespace admin --secret-name admin-basic-auth
     kubectl apply -f "${LOCAL_SECRETS_DIR}/admin-basic-auth-sealed.yaml"
 
     # Grafana admin (admin/admin para desarrollo local, salvo override en .env.local)

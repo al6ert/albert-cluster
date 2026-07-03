@@ -19,9 +19,16 @@ set -euo pipefail
 #               namespace velero; requiere R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY)
 #   all         todos salvo grafana-cloud y velero (requieren cuenta externa; generar aparte)
 #
-# Passwords fijos via .env.local (no versionado): ADMIN_PASSWORD, ARGO_PASSWORD,
-# GRAFANA_ADMIN_PASSWORD, CLOUDFLARE_API_TOKEN. Sin ellos se generan aleatorios
-# (excepto cloudflare, que exige token real).
+# Passwords fijos via .env.local (no versionado). Un ÚNICO fichero para AMBOS
+# entornos: el cluster destino lo elige el contexto de kubectl, NO el fichero
+# (los SealedSecrets van atados al cluster que los selló). Esquema canónico y
+# documentado en .env.local.example. Variables por componente:
+#   basic-auth     TRAEFIK_LOGIN (login del dashboard, def. admin) + TRAEFIK_PASSWORD
+#   grafana        GRAFANA_ADMIN_PASSWORD
+#   cloudflare     CLOUDFLARE_API_TOKEN (obligatoria)
+#   grafana-cloud  GRAFANA_CLOUD_PROM_USER / _LOKI_USER / _TOKEN
+#   velero         R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY
+# Sin la variable correspondiente se genera aleatoria (salvo tokens externos).
 
 # Source versions from centralized file
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -43,7 +50,9 @@ fi
 # Default values (can be overridden)
 COMPONENT="${COMPONENT:-basic-auth}"
 NAMESPACE="${NAMESPACE:-admin}"
-USERS="${USERS:-admin,argo}"
+# El basic-auth del cluster es un único login: el del dashboard de Traefik.
+# Por defecto = TRAEFIK_LOGIN (def. admin). --users sigue permitiendo varios.
+USERS="${USERS:-${TRAEFIK_LOGIN:-admin}}"
 SECRET_NAME="${SECRET_NAME:-admin-basic-auth}"
 BCRYPT_ROUNDS="${BCRYPT_ROUNDS:-12}"
 
@@ -67,12 +76,14 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "Usage: $0 [--component basic-auth|grafana|cloudflare|all] [--namespace NS] [--users \"u1,u2\"] [--secret-name NAME]"
+            echo "Usage: $0 [--component basic-auth|grafana|cloudflare|argocd-redis|grafana-cloud|velero|all] [--namespace NS] [--users \"u1,u2\"] [--secret-name NAME]"
             echo ""
-            echo "Environment variables (.env.local):"
-            echo "  ADMIN_PASSWORD, ARGO_PASSWORD        basic-auth"
+            echo "Environment variables (.env.local — ver .env.local.example):"
+            echo "  TRAEFIK_LOGIN, TRAEFIK_PASSWORD      basic-auth (login del dashboard)"
             echo "  GRAFANA_ADMIN_PASSWORD               grafana"
             echo "  CLOUDFLARE_API_TOKEN                 cloudflare (obligatoria)"
+            echo "  GRAFANA_CLOUD_PROM_USER/_LOKI_USER/_TOKEN   grafana-cloud"
+            echo "  R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY      velero"
             exit 0
             ;;
         *)
@@ -131,18 +142,14 @@ generate_basic_auth() {
 
     for user in "${USER_ARRAY[@]}"; do
         user=$(echo "$user" | xargs)  # trim whitespace
-        # Si hay password fijo en env, úsalo
-        case "$user" in
-            admin)
-                password="${ADMIN_PASSWORD:-}"
-                ;;
-            argo)
-                password="${ARGO_PASSWORD:-}"
-                ;;
-            *)
-                password=""
-                ;;
-        esac
+        # El login del dashboard (TRAEFIK_LOGIN) toma su TRAEFIK_PASSWORD;
+        # ADMIN_PASSWORD se mantiene como fallback por compatibilidad. Cualquier
+        # otro usuario (--users "a,b") recibe una contraseña aleatoria.
+        if [ "$user" = "${TRAEFIK_LOGIN:-admin}" ]; then
+            password="${TRAEFIK_PASSWORD:-${ADMIN_PASSWORD:-}}"
+        else
+            password=""
+        fi
         if [ -z "$password" ]; then
             password=$(openssl rand -base64 20)
         fi

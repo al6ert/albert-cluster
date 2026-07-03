@@ -25,6 +25,11 @@ runs:
         echo "yq-version=${YQ_VERSION}" >> $GITHUB_OUTPUT
         echo "kubectl-version=${KUBECTL_VERSION}" >> $GITHUB_OUTPUT
         echo "kubeseal-version=${KUBESEAL_VERSION}" >> $GITHUB_OUTPUT
+        # Exporta TODAS las versiones al env del job: los helmfile template/
+        # lint/diff de pasos posteriores leen los pins via {{ env "..." }}.
+        # Sin esto renderizarían con versión vacía (= latest), invalidando
+        # la validación.
+        sed -n 's/^export \([A-Z0-9_]*\)="\(.*\)"$/\1=\2/p' versions.env >> "$GITHUB_ENV"
 
     - name: Cache Helm plugins & charts
       uses: actions/cache@v4

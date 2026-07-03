@@ -50,16 +50,14 @@ jobs:
           minikube_ns=$(yq e '.metadata.namespace' /tmp/minikube-all.yaml | sort -u | grep -v null)
           netcup_ns=$(yq e '.metadata.namespace' /tmp/netcup-all.yaml | sort -u | grep -v null)
 
-          if [ "$minikube_ns" != "$netcup_ns" ]; then
-            echo "::error::Namespaces don't match between environments"
+          # minikube ⊆ netcup: hay apps solo-prod (monitoring, velero), pero
+          # nada puede existir en minikube y faltar en netcup.
+          missing=$(comm -23 <(echo "$minikube_ns") <(echo "$netcup_ns"))
+          if [ -n "$missing" ]; then
+            echo "::error::Namespaces en minikube que faltan en netcup: $missing"
             exit 1
           fi
-          echo "✅ Namespaces are consistent across environments"
-
-      - name: Load Kubernetes version
-        run: |
-          source versions.env
-          echo "KUBERNETES_VERSION=${KUBERNETES_VERSION}" >> "$GITHUB_ENV"
+          echo "✅ Namespaces consistentes (minikube ⊆ netcup)"
 
       - name: Setup Minikube
         uses: medyagh/setup-minikube@v0.0.15

@@ -1,0 +1,4 @@
+# infra/envs/minikube/monitoring-values.yaml
+# La release monitoring NO se instala en minikube (installed: false en su
+# helmfile); este fichero existe por el patrón uniforme de values por entorno.
+{}

@@ -1,0 +1,5 @@
+# Descubierto por el ApplicationSet (git files generator).
+# Crear este fichero = la app aparece en ArgoCD; borrarlo = se poda.
+name: monitoring
+namespace: monitoring   # destination.namespace de la Application
+wave: "3"       # documental: orden de bootstrap / helmfile raíz

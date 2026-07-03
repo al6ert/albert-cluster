@@ -1,0 +1,23 @@
+environments:
+  minikube: {}
+  netcup: {}
+
+---
+repositories:
+  - name: grafana
+    url: https://grafana.github.io/helm-charts
+
+releases:
+  - name: monitoring
+    namespace: monitoring
+    createNamespace: true
+    chart: grafana/k8s-monitoring
+    version: {{ env "K8S_MONITORING_CHART_VERSION" }}
+    # Solo producción: envía métricas/logs a Grafana Cloud. En minikube no se
+    # instala (no hay credenciales ni sentido: el loop local usa smoke tests).
+    installed: {{ eq .Environment.Name "netcup" }}
+    values:
+      - values.yaml
+      - ../../envs/{{ .Environment.Name }}/monitoring-values.yaml
+    wait: true
+    timeout: 300

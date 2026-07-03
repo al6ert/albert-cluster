@@ -1,0 +1,37 @@
+# infra/envs/netcup/monitoring-values.yaml
+#
+# ⚠️ PREREQUISITO antes de promocionar a main: crear la cuenta de Grafana
+# Cloud (free tier) y sustituir las dos URL de abajo por las del stack real
+# (Grafana Cloud → Stack → Prometheus "Remote Write Endpoint" y Loki "URL").
+# Después: ./scripts/generate-credentials.sh --component grafana-cloud
+# (lee GRAFANA_CLOUD_PROM_USER, GRAFANA_CLOUD_LOKI_USER y
+# GRAFANA_CLOUD_TOKEN de .env.local) y commitear el sellado.
+# Si las URL siguen en REPLACE-ME, Alloy queda Degraded y el gate de CI
+# (app wait --health) frena la promoción: fallo ruidoso, no silencioso.
+
+cluster:
+  name: netcup
+
+destinations:
+  grafana-cloud-metrics:
+    type: prometheus
+    url: https://REPLACE-ME.grafana.net/api/prom/push
+    auth:
+      type: basic
+      usernameKey: prometheus-username
+      passwordKey: access-token
+    secret:
+      create: false
+      name: grafana-cloud-credentials
+      namespace: monitoring
+  grafana-cloud-logs:
+    type: loki
+    url: https://REPLACE-ME.grafana.net/loki/api/v1/push
+    auth:
+      type: basic
+      usernameKey: loki-username
+      passwordKey: access-token
+    secret:
+      create: false
+      name: grafana-cloud-credentials
+      namespace: monitoring

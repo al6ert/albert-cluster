@@ -10,3 +10,5 @@ resources:
   - cert-manager-CRDs.yaml
   - sealed-secrets-crd.yaml
   - argocd-crds.yaml
+  - alloy-crd.yaml
+  - velero-crds.yaml

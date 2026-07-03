@@ -1,0 +1,56 @@
+# Grafana k8s-monitoring (Alloy → Grafana Cloud).
+# Features y collectors comunes; los destinations (URLs del stack de Grafana
+# Cloud) van por entorno en infra/envs/<env>/monitoring-values.yaml.
+# Credenciales: Secret grafana-cloud-credentials (SealedSecret; ver
+# scripts/generate-credentials.sh --component grafana-cloud y docs/observability.md).
+
+# Métricas del cluster (cadvisor, kubelet, kube-state-metrics, node-exporter)
+clusterMetrics:
+  enabled: true
+  collector: alloy-metrics
+
+# Eventos de Kubernetes como logs
+clusterEvents:
+  enabled: true
+  collector: alloy-singleton
+
+# Logs de todos los pods
+podLogsViaLoki:
+  enabled: true
+  collector: alloy-logs
+
+# Scrape de pods/services anotados con k8s.grafana.io/scrape: "true"
+# (cert-manager, traefik, argocd exponen /metrics — anotar donde interese)
+annotationAutodiscovery:
+  enabled: true
+  collector: alloy-metrics
+
+# kube-state-metrics y node-exporter integrados (los desplegaba antes
+# kube-prometheus-stack)
+telemetryServices:
+  kube-state-metrics:
+    deploy: true
+  node-exporter:
+    deploy: true
+
+# No enviar telemetría de uso del chart a Grafana
+selfReporting:
+  enabled: false
+
+alloy-operator:
+  # Los hooks de Helm (add-finalizer/pre-delete) son la misma clase de
+  # problema que los Jobs-hook con ttl que este repo eliminó del chart de
+  # ArgoCD: fuera. Contrapartida asumida: un uninstall puede dejar CRs Alloy
+  # huérfanos (se borran a mano).
+  waitForAlloyRemoval:
+    enabled: false
+
+collectors:
+  alloy-metrics:
+    enabled: true
+    presets: [clustered]   # requerido por annotationAutodiscovery
+  alloy-singleton:
+    enabled: true
+  alloy-logs:
+    enabled: true
+    presets: [filesystem-log-reader]   # DaemonSet con hostPath /var/log

@@ -11,8 +11,12 @@ repositories:
 releases:
   - name: prometheus
     chart: prometheus-community/kube-prometheus-stack
-    version: {{ env "PROMETHEUS_CHART_VERSION" | default "79.11.0" }}
+    version: {{ env "PROMETHEUS_CHART_VERSION" }}
     namespace: monitoring
     createNamespace: true
+    # En netcup NO se instala (PROMETHEUS_ENABLED=false en versions.env):
+    # prod nunca lo desplegó y está en retirada a favor de la app monitoring
+    # (Grafana Cloud). En minikube sigue instalándose (lo valida dev-ci).
+    installed: {{ or (ne .Environment.Name "netcup") (eq (env "PROMETHEUS_ENABLED" | default "true") "true") }}
     values:
       - ../../envs/{{ .Environment.Name }}/prometheus-values.yaml

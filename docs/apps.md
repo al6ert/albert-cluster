@@ -10,8 +10,11 @@ en `infra/envs/<entorno>/<app>-values.yaml`. Versiones en
 | sealed-secrets | `sealed-secrets/sealed-secrets` | `2.18.6` | `kube-system` | Cifrado de secretos | [github](https://github.com/bitnami/sealed-secrets) |
 | traefik | `traefik/traefik` | `40.3.0` | `traefik` | Gateway API + ingress | [doc.traefik.io](https://doc.traefik.io/traefik/) |
 | argocd | `argo/argo-cd` | `9.5.21` | `argocd` | GitOps | [argo-cd.readthedocs.io](https://argo-cd.readthedocs.io/) |
-| prometheus | `prometheus-community/kube-prometheus-stack` | `86.2.2` | `monitoring` | Métricas/dashboards/alertas | [github](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) |
-| hello | local `infra/charts/hello` | `0.2.0` | `hello` | App de ejemplo/canario | — |
+| prometheus | `prometheus-community/kube-prometheus-stack` | `86.2.2` | `monitoring` | ⚠️ En retirada (lo sustituye `monitoring`) | [github](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) |
+| monitoring | `grafana/k8s-monitoring` | `4.1.6` | `monitoring` | Alloy → Grafana Cloud (solo netcup) | [github](https://github.com/grafana/k8s-monitoring-helm) |
+| velero | `vmware-tanzu/velero` | `12.1.0` | `velero` | Backups a R2 (solo netcup) | [velero.io](https://velero.io/docs/) |
+| policies | `bedag/raw` | `2.0.2` | (multi) | NetworkPolicy/quotas por ns de app | [github](https://github.com/bedag/helm-charts/tree/master/charts/raw) |
+| hello | local `infra/charts/hello` | `0.3.0` | `hello` | App de ejemplo/plantilla/canario | — |
 
 Repos de charts:
 [traefik](https://traefik.github.io/charts) ·
@@ -53,7 +56,33 @@ Usa un *config management plugin* para ejecutar Helmfile. Expone la UI por
 `HTTPRoute` y, en prod, una API gRPC por `Ingress` h2c (`argo-api.albertperez.dev`)
 para el CLI. Contraseña inicial: ver [secrets.md](secrets.md#argocd).
 
-## prometheus (kube-prometheus-stack) — ⚠️ componente pesado
+## monitoring (Grafana Alloy → Grafana Cloud)
+
+Sustituto de kube-prometheus-stack: en el cluster solo corren los colectores
+Alloy (+ kube-state-metrics y node-exporter); métricas, logs, dashboards,
+alertas y uptime checks viven en **Grafana Cloud** (free tier), fuera del VPS
+— en single-node, el alerting self-hosted muere con el nodo. Solo se instala
+en netcup. Puesta en marcha y alertas mínimas: [observability.md](observability.md).
+
+## velero (backups)
+
+Backups diarios a Cloudflare R2: la clave de sealed-secrets (90d de
+retención) y los recursos del cluster (30d). `node-agent` (kopia) listo para
+PVs de apps con estado. Solo netcup. Procedimiento completo de recuperación:
+[runbook DR](runbooks/disaster-recovery.md).
+
+## policies
+
+NetworkPolicy (default-deny ingress + allows), ResourceQuota y LimitRange por
+namespace de app, vía chart `bedag/raw`. ⚠️ flannel (prod) no aplica
+NetworkPolicy: son declarativas hasta migrar el CNI; quotas y LimitRange sí
+se aplican. Al añadir una app, copia el bloque de `hello` en sus values.
+
+## prometheus (kube-prometheus-stack) — ⚠️ EN RETIRADA
+
+Sustituido por la app `monitoring` (decisión A1: alerting fuera del nodo).
+Se elimina cuando `monitoring` esté validado en producción enviando a
+Grafana Cloud. Mientas tanto sigue sirviendo métricas locales.
 
 Stack completo: Prometheus + Grafana + Alertmanager + node-exporter +
 kube-state-metrics + un montón de CRDs.

@@ -21,11 +21,32 @@ Un único script para generarlos: [`scripts/generate-credentials.sh`](scripts.md
 | Componente | Secret (namespace) | Lo consume | Generar con |
 |------------|--------------------|------------|-------------|
 | Basic-auth dashboard | `admin-basic-auth` (`admin`) | Middleware basic-auth de Traefik | `--component basic-auth` |
-| Grafana admin | `grafana-admin` (`monitoring`) | `grafana.admin.existingSecret` | `--component grafana` |
+| Grafana admin | `grafana-admin` (`monitoring`) | `grafana.admin.existingSecret` (kube-prometheus-stack, en retirada) | `--component grafana` |
 | Cloudflare API token | `cloudflare-api-token` (`cert-manager`) | ClusterIssuer `letsencrypt-prod` (DNS-01) | `--component cloudflare` |
 | Redis de ArgoCD | `argocd-redis` (`argocd`) | Auth del Redis (el Job `redis-secret-init` del chart está desactivado: su ttl de 60s hacía fallar syncs largos) | `--component argocd-redis` |
+| Grafana Cloud | `grafana-cloud-credentials` (`monitoring`) | Alloy (app `monitoring`): remote write de métricas/logs | `--component grafana-cloud` |
+| R2 backups | `velero-r2-credentials` (`velero`) | Velero (BackupStorageLocation en R2) | `--component velero` |
 
 Archivos sellados: `infra/bootstrap/secrets/*-sealed.yaml`.
+
+## ⚠️ Escrow de la clave del controller (hazlo AHORA, no en el desastre)
+
+La clave privada del controller de sealed-secrets es **el único secreto que no
+puede regenerarse**: sin ella, todos los `*-sealed.yaml` del repo son
+irrecuperables. Doble respaldo:
+
+1. **Manual** (tras el bootstrap y tras cada rotación de clave, ~30 días):
+   ```bash
+   kubectl get secret -n kube-system \
+     -l sealedsecrets.bitnami.com/sealed-secrets-key -o yaml > sealed-secrets-keys.yaml
+   ```
+   Guárdalo cifrado en el gestor de contraseñas (exporta TODAS las claves del
+   label, no solo la activa) y borra el fichero local.
+2. **Automático**: el schedule `sealed-secrets-key` de Velero lo sube a R2 a
+   diario (retención 90d).
+
+Restauración: [runbook DR](runbooks/disaster-recovery.md) — la clave se aplica
+**antes** de que el controller arranque.
 
 ## `.env.local` (no versionado)
 
@@ -36,8 +57,13 @@ Cloudflare, que **exige** token real):
 # .env.local  (en .gitignore)
 ADMIN_PASSWORD=...            # usuario admin del basic-auth
 ARGO_PASSWORD=...             # usuario argo del basic-auth (si se usa)
-GRAFANA_ADMIN_PASSWORD=...    # admin de Grafana
+GRAFANA_ADMIN_PASSWORD=...    # admin de Grafana (kube-prometheus-stack, en retirada)
 CLOUDFLARE_API_TOKEN=...      # token DNS de Cloudflare (obligatorio para prod)
+GRAFANA_CLOUD_PROM_USER=...   # id numérico del stack (métricas)
+GRAFANA_CLOUD_LOKI_USER=...   # id numérico del stack (logs)
+GRAFANA_CLOUD_TOKEN=...       # Cloud Access Policy token (metrics:write+logs:write)
+R2_ACCESS_KEY_ID=...          # token S3 de R2 scoped al bucket de backups
+R2_SECRET_ACCESS_KEY=...
 ```
 
 ## Rotar un secreto

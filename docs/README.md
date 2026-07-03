@@ -15,6 +15,8 @@ TLS con **cert-manager** y exposición con **Traefik + Gateway API**.
 | [apps.md](apps.md) | Cada aplicación: chart, versión, namespace, rol y **link a doc oficial**. |
 | [adding-apps.md](adding-apps.md) | Cómo añadir una app nueva paso a paso + checklist. |
 | [updates.md](updates.md) | Actualizaciones automáticas de charts con **reglas de seguridad** (no actualizar nada con <7 días). |
+| [observability.md](observability.md) | Métricas/logs/alertas con **Alloy → Grafana Cloud** y uptime checks externos. |
+| [runbooks/disaster-recovery.md](runbooks/disaster-recovery.md) | **Reconstruir producción desde cero** (clave sealed-secrets, kubeadm, drill). |
 | [assessment.md](assessment.md) | **Rúbrica del estado actual** desde múltiples perspectivas + backlog priorizado. |
 
 ## TL;DR

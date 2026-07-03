@@ -6,25 +6,33 @@ El repositorio Git es la **única fuente de verdad**. Nadie aplica manifiestos a
 mano en producción: ArgoCD observa el repo y reconcilia el cluster.
 
 ```
- Git (este repo)                Cluster
- ┌────────────────┐             ┌──────────────────────────────────────┐
- │ infra/apps/    │   watch     │  ArgoCD Application                   │
- │  helmfile.yaml │ ──────────► │   (cluster-root / cluster-minikube)  │
- │ infra/envs/    │             │        │ plugin "helmfile"           │
- │ infra/charts/  │             │        ▼                             │
- └────────────────┘             │   helmfile template → manifiestos    │
-        ▲                       │        │                             │
-        │ git push              │        ▼ apply (prune, self-heal)    │
-        │                       │   cert-manager, traefik, prometheus… │
- ┌──────┴───────┐               └──────────────────────────────────────┘
- │  GitHub CI   │  (en main: argocd app sync cluster-root)
+ Git (este repo)                    Cluster
+ ┌────────────────────┐            ┌────────────────────────────────────────┐
+ │ infra/apps/        │   watch    │  ApplicationSet "cluster-apps"         │
+ │  <app>/app.yaml ───┼──────────► │   (git files generator)                │
+ │  <app>/helmfile…   │            │     │ genera 1 Application POR APP     │
+ │ infra/envs/        │            │     ▼                                  │
+ │ infra/charts/      │            │  Application <app> → plugin "helmfile" │
+ └────────────────────┘            │     │ helmfile template (en el dir     │
+        ▲                          │     ▼  de la app)                      │
+        │ git push                 │  apply (prune, self-heal, retry)       │
+        │                          └────────────────────────────────────────┘
+ ┌──────┴───────┐
+ │  GitHub CI   │  (en main: argocd app sync -l cluster=netcup + wait --health)
  └──────────────┘
 ```
 
+- **Una Application por app** (generadas por el ApplicationSet
+  `infra/bootstrap/appset-<entorno>.yaml` a partir de los
+  `infra/apps/<app>/app.yaml`): salud y sync granulares, una app rota no
+  frena a las demás, y **crear carpeta = alta de app** (ver
+  [adding-apps.md](adding-apps.md)).
 - **ArgoCD** ejecuta Helmfile a través de un *config management plugin* (CMP).
   No hay manifiestos renderizados versionados; ArgoCD renderiza en vivo.
 - **Helmfile** combina, por cada app, su chart upstream + `values.yaml` base +
-  `infra/envs/<entorno>/<app>-values.yaml`.
+  `infra/envs/<entorno>/<app>-values.yaml`. El helmfile raíz
+  (`infra/apps/helmfile.yaml`) queda para deploy-local/bootstrap/CI; la CI
+  exige que toda app esté registrada en ambos sitios.
 - **Versiones de chart**: fuente única en [`versions.env`](../versions.env). El
   plugin hace `source versions.env` del propio checkout antes de renderizar, así
   que Git manda también en las versiones. (Nota: inyectarlas como `env:` de la
@@ -74,12 +82,30 @@ El orden lo define `infra/apps/helmfile.yaml` (los `helmfiles:` se aplican en or
 | 1 | **traefik** | Ingress controller / **implementación de Gateway API** + LoadBalancer de entrada. |
 | 2 | **argocd** | El propio GitOps (se autogestiona tras el bootstrap). |
 | 3 | **hello** | App de ejemplo / canario (chart local en `infra/charts/hello`). |
-| 3 | **prometheus** | `kube-prometheus-stack` (Prometheus + Grafana + Alertmanager). |
+| 3 | **prometheus** | `kube-prometheus-stack` — en retirada, sustituido por `monitoring` (ver [observability.md](observability.md)). |
+| 3 | **monitoring** | Grafana Alloy → Grafana Cloud (solo netcup). |
+| 3 | **velero** | Backups a Cloudflare R2 (solo netcup; [runbook DR](runbooks/disaster-recovery.md)). |
+| 3 | **policies** | NetworkPolicy + ResourceQuota + LimitRange por namespace de app. |
+
+> El "wave" es **documental** en el modelo per-app: cada Application se
+> reconcilia independiente con `retry`; el orden real de arranque en frío lo
+> dan los scripts de bootstrap. El orden del helmfile raíz sigue aplicando en
+> `deploy-local.sh`/`bootstrap-prod.sh`.
 
 Las **CRDs** (cert-manager, traefik, gateway-api, prometheus, sealed-secrets,
-argo) **no** las instalan los charts: viven en `infra/bootstrap/crds/` y se
-aplican con `kubectl apply --server-side` antes que nada. Esto evita el problema
-clásico de Helm con CRDs y los `--server-side` evita conflictos de tamaño.
+argo, alloy, velero) **no** las instalan los charts: viven en
+`infra/bootstrap/crds/` y se aplican con `kubectl apply --server-side` antes
+que nada. Esto evita el problema clásico de Helm con CRDs y los
+`--server-side` evita conflictos de tamaño.
+
+## Fiabilidad en un nodo (asunción explícita)
+
+Este cluster es **single-node a propósito** (homelab/VPS): no hay HA real.
+`replicaCount > 1` y `PodDisruptionBudget` **no aportan** disponibilidad aquí
+(mismo nodo) — no se usan por defecto. La estrategia de fiabilidad es:
+reconstrucción rápida desde Git ([runbook DR](runbooks/disaster-recovery.md)),
+backups fuera del VPS (velero → R2) y alerting fuera del cluster
+([observability.md](observability.md)).
 
 ## Red
 
@@ -122,16 +148,16 @@ tres paradigmas de routing conviviendo. Ver
 albert-cluster/
 ├── versions.env              # Fuente de verdad de versiones
 ├── deploy-local.sh           # Despliegue local idempotente
-├── docs/                     # Esta documentación
-├── scripts/                  # bootstrap-prod, generate-credentials
+├── docs/                     # Esta documentación (+ runbooks/)
+├── scripts/                  # bootstrap-prod, generate-credentials, new-app
 ├── tests/smoke.sh            # Smoke tests
 ├── .github/workflows/        # ci.yaml (main/PR) + dev-ci (rama dev)
 └── infra/
-    ├── bootstrap/            # CRDs, namespaces, RBAC, middlewares, secrets sellados
+    ├── bootstrap/            # CRDs, namespaces (PSS), RBAC, middlewares, sellados
     │   ├── crds/             # Aplicadas con server-side antes que los charts
-    │   ├── argocd-root.yaml      # Application de producción (netcup, rama main)
-    │   └── argocd-minikube.yaml  # Application de local (minikube, rama dev)
-    ├── apps/                 # Un sub-helmfile por app + helmfile.yaml raíz
+    │   ├── appset-netcup.yaml    # ApplicationSet de producción (rama main)
+    │   └── appset-minikube.yaml  # ApplicationSet de local/CI (rama dev)
+    ├── apps/                 # Por app: app.yaml + helmfile + values (+ raíz)
     ├── envs/                 # Overrides por entorno (minikube / netcup)
-    └── charts/hello/         # Chart local de ejemplo
+    └── charts/hello/         # Chart local de ejemplo/plantilla
 ```

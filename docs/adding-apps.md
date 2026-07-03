@@ -1,61 +1,52 @@
 # Añadir una aplicación nueva
 
-Patrón uniforme para toda app. Usa el chart `hello` (`infra/charts/hello`) como
-referencia de "app bien hecha".
+Patrón uniforme para toda app. El scaffold lo genera
+[`scripts/new-app.sh`](scripts.md); el chart `hello` (`infra/charts/hello`) es
+la referencia de "app bien hecha" (securityContext, HTTPRoute, NetworkPolicy,
+resources).
+
+## Cómo funciona el alta (modelo ApplicationSet)
+
+Cada `infra/apps/<app>/app.yaml` es descubierto por el **ApplicationSet**
+`cluster-apps` (git files generator): **crear la carpeta con su `app.yaml` y
+pushear = la Application aparece en ArgoCD; borrarla = se poda**. No hay que
+tocar ningún manifiesto de ArgoCD.
+
+El helmfile raíz (`infra/apps/helmfile.yaml`) sigue existiendo para
+`deploy-local.sh`, `bootstrap-prod.sh` y la validación de CI — la CI **falla**
+si una app está en un registro y no en el otro.
 
 ## Decisión previa: ¿chart upstream o chart local?
 
-- **Chart upstream** (Helm público): creas solo el `helmfile.yaml.gotmpl` que lo
-  referencia + values. Ej.: cert-manager, traefik.
-- **Chart local** (app propia sin chart público): creas un chart en
-  `infra/charts/<app>/` y lo referencias con `chart: ../../charts/<app>`. Ej.:
-  hello.
+- **Chart upstream** (Helm público): `--chart repo/chart --repo-url URL --version X`.
+- **Chart local** (app propia): `--local` — copia `infra/charts/hello` como base.
 
 ## Pasos
 
-### 1. Release Helmfile
+### 1. Scaffold
 
-`infra/apps/<app>/helmfile.yaml.gotmpl`:
+```bash
+# Upstream
+./scripts/new-app.sh miapp --chart ejemplo/miapp \
+  --repo-url https://charts.ejemplo.io --version 1.2.3
 
-```yaml
-repositories:
-  - name: ejemplo
-    url: https://charts.ejemplo.io
-
-releases:
-  - name: miapp
-    namespace: miapp
-    createNamespace: true
-    chart: ejemplo/miapp
-    version: {{ env "MIAPP_CHART_VERSION" }}
-    values:
-      - values.yaml
-      - ../../envs/{{ .Environment.Name }}/miapp-values.yaml
-    wait: true
-    timeout: 300
+# App propia (chart local)
+./scripts/new-app.sh miapp --local
 ```
 
-### 2. Registrar en el Helmfile raíz
+Genera: `infra/apps/miapp/{app.yaml,helmfile.yaml.gotmpl,values.yaml}`,
+`infra/envs/{minikube,netcup}/miapp-values.yaml`, la versión en
+`versions.env` (con anotación `# renovate:`) y la línea en el helmfile raíz.
 
-Añade la línea en `infra/apps/helmfile.yaml` **en la posición que define su
-sync-wave** (el orden importa: depende de cert-manager/traefik):
+### 2. Values base y por entorno
 
-```yaml
-helmfiles:
-  ...
-  - path: ./miapp/helmfile.yaml.gotmpl        # wave 3
-```
+- `infra/apps/miapp/values.yaml` — comunes a todos los entornos.
+- `infra/envs/<entorno>/miapp-values.yaml` — lo que cambia por entorno
+  (sobre todo el **hostname**).
 
-### 3. Values base y por entorno
+### 3. Exponerla con Gateway API (no Ingress)
 
-- `infra/apps/<app>/values.yaml` — comunes a todos los entornos.
-- `infra/envs/minikube/miapp-values.yaml` y `infra/envs/netcup/miapp-values.yaml`
-  — lo único que cambia por entorno (sobre todo el **hostname**).
-
-### 4. Exponerla con Gateway API (no Ingress)
-
-Declara un `HTTPRoute` apuntando al Gateway compartido. El **TLS lo termina el
-Gateway**, así que solo necesitas el hostname:
+`HTTPRoute` al Gateway compartido; el TLS lo termina el Gateway:
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
@@ -76,54 +67,69 @@ spec:
           port: 80
 ```
 
-Si el chart upstream no soporta `HTTPRoute` nativo, añádelo vía
-`extraObjects`/`extraManifests` del chart (ver el ejemplo de Grafana en
-`infra/envs/netcup/prometheus-values.yaml`) o como manifiesto suelto en el chart
-local.
+Si el chart upstream no soporta `HTTPRoute`, añádelo vía
+`extraObjects`/`extraManifests` (ejemplo: grafana en el antiguo
+prometheus-values) o como template del chart local.
 
-### 5. Versión en `versions.env` (único sitio)
+### 4. Seguridad y límites (no opcional)
+
+- **securityContext**: copia el del chart hello (`runAsNonRoot`,
+  `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem`,
+  `capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault`). El namespace
+  nace con PSS `enforce: restricted` — un pod sin esto **se rechaza**. Si la
+  app necesita más nivel, crea `infra/bootstrap/namespaces/<ns>.yaml` con el
+  nivel justificado en comentario (patrón: monitoring/velero).
+- **resources**: siempre requests/limits. Con la `ResourceQuota` del
+  namespace, los pods sin límites solo entran si el `LimitRange` les pone
+  defaults.
+- **Políticas**: añade el bloque del namespace (NetworkPolicy default-deny +
+  allows, ResourceQuota, LimitRange) en `infra/apps/policies/values.yaml`,
+  copiando el bloque de `hello`.
+
+### 5. CRDs (si el chart las trae)
+
+Convención del repo: los charts NO instalan CRDs. Extráelas a
+`infra/bootstrap/crds/` y regístralas en su kustomization:
 
 ```bash
-# renovate: datasource=helm depName=miapp registryUrl=https://charts.ejemplo.io
-export MIAPP_CHART_VERSION="1.2.3"
+source versions.env
+helm template x repo/chart --version $VER --include-crds | \
+  yq 'select(.kind == "CustomResourceDefinition")' > infra/bootstrap/crds/miapp-crds.yaml
 ```
 
-El plugin de ArgoCD hace `source versions.env` del checkout, y los scripts/CI
-también, así que **no hay que duplicar la versión en ningún otro fichero**. La
-línea `# renovate:` es opcional pero recomendada: permite que Renovate proponga
-actualizaciones (ver [updates.md](updates.md)).
+y desactiva su instalación en values (`crds.install: false` o equivalente).
 
-### 6. DNS
-
-En producción, `*.albertperez.dev` debería ser un wildcard apuntando al VPS, así
-que `miapp.albertperez.dev` resuelve solo. Si usas registros A individuales, crea
-el registro. En local, `nip.io` resuelve automáticamente.
-
-### 7. Desplegar y validar
+### 6. Validar y desplegar
 
 ```bash
-# Local
-./deploy-local.sh
-./tests/smoke.sh
+# Render de la app suelta
+source versions.env
+helmfile --environment minikube -f infra/apps/miapp/helmfile.yaml.gotmpl template
 
-# Producción: push a main → ArgoCD sincroniza
+# Local completo
+./deploy-local.sh && ./tests/smoke.sh
+
+# Push a dev → dev-ci valida → el ApplicationSet de minikube la despliega.
+# Cuando esté verde: promociona dev → main (producción).
 ```
 
 ## Checklist
 
-- [ ] `infra/apps/<app>/helmfile.yaml.gotmpl`
-- [ ] Línea añadida en `infra/apps/helmfile.yaml` (sync-wave correcta)
-- [ ] `values.yaml` base + `infra/envs/{minikube,netcup}/<app>-values.yaml`
-- [ ] `HTTPRoute` al Gateway `traefik-gateway`
-- [ ] Versión en `versions.env` (con anotación `# renovate:`)
-- [ ] DNS (wildcard ya cubre, o registro nuevo)
-- [ ] `securityContext` endurecido (runAsNonRoot, drop ALL caps, readOnlyRootFilesystem)
-- [ ] `resources` (requests/limits) definidos
-- [ ] `./tests/smoke.sh` en verde
+- [ ] `./scripts/new-app.sh` ejecutado (app.yaml + helmfile + values + versión + raíz)
+- [ ] Hostname por entorno + `HTTPRoute` al Gateway `traefik-gateway`
+- [ ] `securityContext` endurecido + `resources` (PSS restricted lo exige)
+- [ ] Bloque en `infra/apps/policies/values.yaml` (netpol + quota + LimitRange)
+- [ ] CRDs en `infra/bootstrap/crds/` si el chart las trae
+- [ ] DNS: el wildcard `*.albertperez.dev` ya cubre subdominios nuevos
+- [ ] `./tests/smoke.sh` en verde en local
+- [ ] Si la app expone `/metrics`: annotation `k8s.grafana.io/scrape: "true"`
+      (ver [observability.md](observability.md))
 
-## Buenas prácticas de seguridad por defecto
+## Notas
 
-Copia el `securityContext` del chart `hello` (`infra/charts/hello/values.yaml`):
-`runAsNonRoot`, `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem`,
-`capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault`. Define siempre
-`resources` para no dejar pods sin límites en un nodo compartido.
+- **PDB / réplicas**: en un cluster de un nodo, `replicaCount > 1` y
+  `PodDisruptionBudget` no dan alta disponibilidad real — no los añadas por
+  defecto ([architecture.md](architecture.md)).
+- **Apps con estado**: antes del primer PV, revisa la estrategia de storage y
+  añade el namespace al backup de Velero si procede
+  ([runbook DR](runbooks/disaster-recovery.md)).

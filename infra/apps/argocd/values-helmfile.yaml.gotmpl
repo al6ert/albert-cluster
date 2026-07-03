@@ -9,6 +9,10 @@ configs:
     # descarga de charts); sin esto las peticiones de controller/server al
     # repo-server mueren con DeadlineExceeded tras reiniciar el repo-server.
     controller.repo.server.timeout.seconds: "300"
+    # Con una Application por app (ApplicationSet), N renders llegan a la vez
+    # al CMP; sin límite, los helm concurrentes agotan la RAM del sidecar y
+    # el kernel los mata ("signal: killed" en helm dependency update).
+    reposerver.parallelism.limit: "3"
     server.repo.server.timeout.seconds: "300"
 
 # El Job-hook redis-secret-init tiene ttlSecondsAfterFinished=60: se autoborra
@@ -60,12 +64,15 @@ repoServer:
         - mountPath: /tmp
           name: cmp-tmp
       resources:
+        # Dimensionado para renders per-app concurrentes (hasta
+        # reposerver.parallelism.limit helmfiles a la vez): con 512Mi el
+        # kernel mataba los helm ("signal: killed").
         limits:
-          cpu: 500m
-          memory: 512Mi
+          cpu: "1"
+          memory: 1Gi
         requests:
-          cpu: 100m
-          memory: 128Mi
+          cpu: 200m
+          memory: 256Mi
   volumes:
     - configMap:
         name: helmfile-plugin-cm

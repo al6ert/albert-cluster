@@ -31,6 +31,28 @@ mano en producción: ArgoCD observa el repo y reconcilia el cluster.
   Application **no** funciona — ArgoCD las prefija como `ARGOCD_ENV_*` y helmfile
   no las vería.)
 
+## Entorno de producción (verificado 2026-07-03)
+
+| Ítem | Valor |
+|------|-------|
+| Proveedor | VPS Netcup, IP `188.68.42.77` (acceso `ssh netcup`) |
+| SO | Ubuntu 22.04.5 LTS (kernel 5.15) |
+| Kubernetes | **kubeadm v1.33.2**, nodo único `albertperez` |
+| Runtime | containerd 2.2.1 |
+| CNI | **flannel** — ⚠️ *no aplica `NetworkPolicy`* (sin enforcement; las políticas serían declarativas hasta migrar a Cilium/Calico) |
+| Recursos | 8 vCPU · 16 GiB RAM · 1 TB disco (`/dev/vda3`) · sin swap |
+| LoadBalancer | el `Service` de Traefik obtiene la IP del propio nodo |
+
+⚠️ **Certificados del plano de control**: kubeadm los emite a **1 año** (los del
+cluster caducaron el 2026-06-29 y dejaron el API server inaccesible — los
+workloads siguieron sirviendo). Renovación: `kubeadm certs renew all` + reinicio
+del plano de control + refrescar `admin.conf` local. `kubeadm upgrade` también
+los renueva de paso. Hay que vigilar su expiración (ver
+[runbooks](runbooks/disaster-recovery.md)).
+
+El kubelet tiene rotación automática de su certificado de cliente (verificado:
+rotó solo en abril). Las CAs valen hasta 2035.
+
 ## Ramas y entornos
 
 | Entorno | Rama | ArgoCD Application | Contexto kubectl | Dominio |
@@ -101,7 +123,7 @@ albert-cluster/
 ├── versions.env              # Fuente de verdad de versiones
 ├── deploy-local.sh           # Despliegue local idempotente
 ├── docs/                     # Esta documentación
-├── scripts/                  # bootstrap-prod, deploy, generate-credentials
+├── scripts/                  # bootstrap-prod, generate-credentials
 ├── tests/smoke.sh            # Smoke tests
 ├── .github/workflows/        # ci.yaml (main/PR) + dev-ci (rama dev)
 └── infra/

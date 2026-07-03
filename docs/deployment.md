@@ -33,7 +33,7 @@ minikube start --driver=docker --kubernetes-version=${KUBERNETES_VERSION}
 3. Instala el controller de **SealedSecrets** y espera a que esté listo.
 4. **Genera secretos dummy locales** en un dir temporal (no toca los
    `*-sealed.yaml` de producción del repo): basic-auth `admin/admin`, Grafana
-   `admin/admin`, token Cloudflare ficticio.
+   `admin/admin`, auth del Redis de ArgoCD y token Cloudflare ficticio.
 5. Habilita **metallb** como LoadBalancer (rango derivado de `minikube ip`), para
    que el `Service` de Traefik obtenga IP sin `minikube tunnel`.
 6. Aplica el resto de apps con Helmfile (`--selector name!=sealed-secrets`).

@@ -45,13 +45,18 @@ jobs:
           path: ~/.minikube/cache/
           key: ${{ runner.os }}-minikube-cache-${{ github.sha }}
 
+      - name: Load Kubernetes version
+        run: |
+          source versions.env
+          echo "KUBERNETES_VERSION=${KUBERNETES_VERSION}" >> "$GITHUB_ENV"
+
       - name: Setup Minikube
         uses: medyagh/setup-minikube@v0.0.15
         with:
           driver: docker
           cache: true
           minikube-version: latest
-          kubernetes-version: v1.33.1
+          kubernetes-version: ${{ env.KUBERNETES_VERSION }}
           cpus: 4
           memory: 12288mb
           wait: all

@@ -60,7 +60,7 @@ albert-cluster/
 ├── versions.env          # Fuente de verdad de versiones
 ├── deploy-local.sh       # Despliegue local idempotente
 ├── docs/                 # Documentación (ver índice arriba)
-├── scripts/              # bootstrap-prod · generate-credentials · deploy(⚠️ ver docs)
+├── scripts/              # bootstrap-prod · generate-credentials
 ├── tests/smoke.sh        # Smoke tests
 ├── .github/workflows/    # CI (main/PR) y dev-ci (rama dev)
 └── infra/

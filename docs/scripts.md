@@ -34,7 +34,7 @@ control y no vuelves a ejecutarlo salvo recrear el cluster.
 [secrets.md](secrets.md).
 
 ```bash
-./scripts/generate-credentials.sh --component all     # basic-auth + grafana + cloudflare
+./scripts/generate-credentials.sh --component all     # basic-auth + grafana + cloudflare + argocd-redis
 ./scripts/generate-credentials.sh --component grafana
 ```
 

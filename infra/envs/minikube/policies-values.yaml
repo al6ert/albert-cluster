@@ -1,0 +1,4 @@
+# infra/envs/minikube/policies-values.yaml
+# Sin overrides: mismas políticas que prod (en minikube el CNI no aplica
+# NetworkPolicy, pero quota/LimitRange sí funcionan y así se prueban).
+{}

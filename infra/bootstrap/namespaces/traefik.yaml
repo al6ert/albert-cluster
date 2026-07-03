@@ -2,15 +2,12 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: argocd
+  name: traefik
   labels:
-    name: argocd
-    kubernetes.io/metadata.name: argocd
-    # PSS (repo-server/sidecar CMP; subir a restricted si warn no chilla)
+    argocd.argoproj.io/managed-by: argocd
+    # PSS (proxy en puertos no privilegiados; subir a restricted si warn no chilla)
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
   annotations:
     argocd.argoproj.io/sync-wave: "0"
-    meta.helm.sh/release-name: "argocd"
-    meta.helm.sh/release-namespace: "argocd"

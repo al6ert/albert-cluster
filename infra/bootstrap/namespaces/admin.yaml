@@ -6,6 +6,8 @@ metadata:
   labels:
     app.kubernetes.io/managed-by: Helm
     argocd.argoproj.io/managed-by: argocd
+    # PSS (solo Middleware+Secret, sin pods)
+    pod-security.kubernetes.io/enforce: restricted
   annotations:
     argocd.argoproj.io/sync-wave: "0"
     meta.helm.sh/release-name: traefik

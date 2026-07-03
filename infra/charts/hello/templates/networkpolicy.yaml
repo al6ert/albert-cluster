@@ -1,0 +1,27 @@
+{{- if .Values.networkPolicy.enabled }}
+# Referencia de NetworkPolicy para apps propias: ingress cerrado por defecto,
+# abierto solo desde el Gateway (traefik) y el scraping (monitoring).
+# ⚠️ Requiere un CNI con enforcement (flannel/minikube NO la aplican; se
+# declara igualmente: documenta la intención y se activa al migrar el CNI).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "hello.fullname" . }}
+  labels:
+    {{- include "hello.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "hello.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range .Values.networkPolicy.allowFromNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.targetPort }}
+{{- end }}

@@ -1,0 +1,91 @@
+# Políticas día-2 por namespace de APP (no de plataforma): NetworkPolicy,
+# ResourceQuota y LimitRange. Viven aquí (reconciliadas por ArgoCD) y no en
+# bootstrap porque cambian con las apps.
+#
+# ⚠️ NetworkPolicy en este cluster (verificado 2026-07):
+#   - netcup usa flannel, que NO aplica NetworkPolicy → declarativas hasta
+#     migrar el CNI (Cilium/Calico). Se declaran igualmente: documentan la
+#     intención y se activan solas al cambiar el CNI.
+#   - minikube (CNI por defecto) tampoco las aplica.
+# Solo ingress: default-deny de egress es alta fricción para operar en
+# solitario (DNS, pulls, webhooks); se documenta como paso futuro.
+#
+# Primera iteración deliberadamente SOLO en namespaces de apps (hello, admin).
+# NO añadir default-deny en cert-manager/argocd/traefik sin mapear antes sus
+# flujos (webhooks del apiserver, gRPC interno, etc.).
+
+resources:
+  # ---------------- hello ----------------
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: default-deny-ingress
+      namespace: hello
+    spec:
+      podSelector: {}
+      policyTypes: [Ingress]
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-from-traefik
+      namespace: hello
+    spec:
+      podSelector: {}
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: traefik
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-from-monitoring
+      namespace: hello
+    spec:
+      podSelector: {}
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: monitoring
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-same-namespace
+      namespace: hello
+    spec:
+      podSelector: {}
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - podSelector: {}
+  - apiVersion: v1
+    kind: ResourceQuota
+    metadata:
+      name: quota
+      namespace: hello
+    spec:
+      hard:
+        requests.cpu: 500m
+        requests.memory: 256Mi
+        limits.cpu: "1"
+        limits.memory: 512Mi
+        pods: "10"
+  - apiVersion: v1
+    kind: LimitRange
+    metadata:
+      name: defaults
+      namespace: hello
+    spec:
+      limits:
+        - type: Container
+          # Para que pods de charts de terceros sin resources hereden límites
+          # (sin esto, con ResourceQuota activa el pod se RECHAZA)
+          default:
+            cpu: 200m
+            memory: 256Mi
+          defaultRequest:
+            cpu: 50m
+            memory: 64Mi

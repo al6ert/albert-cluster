@@ -6,14 +6,18 @@ set -euo pipefail
 # actual (los SealedSecrets solo se pueden dessellar en ese cluster).
 #
 # Usage:
-#   ./scripts/generate-credentials.sh [--component basic-auth|grafana|cloudflare|all] [opciones]
+#   ./scripts/generate-credentials.sh [--component basic-auth|grafana|cloudflare|argocd-redis|grafana-cloud|all] [opciones]
 #
 # Componentes:
 #   basic-auth  htpasswd para el dashboard de Traefik (default; namespace admin)
 #   grafana     credenciales admin de Grafana (Secret grafana-admin, namespace monitoring)
 #   cloudflare  token de API de Cloudflare para cert-manager (requiere CLOUDFLARE_API_TOKEN)
 #   argocd-redis password de auth del Redis de ArgoCD (Secret argocd-redis, namespace argocd)
-#   all         todos los anteriores
+#   grafana-cloud credenciales de Grafana Cloud para Alloy (Secret grafana-cloud-credentials,
+#               namespace monitoring; requiere GRAFANA_CLOUD_PROM_USER/LOKI_USER/TOKEN)
+#   velero      credenciales S3 de R2 para backups (Secret velero-r2-credentials,
+#               namespace velero; requiere R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY)
+#   all         todos salvo grafana-cloud y velero (requieren cuenta externa; generar aparte)
 #
 # Passwords fijos via .env.local (no versionado): ADMIN_PASSWORD, ARGO_PASSWORD,
 # GRAFANA_ADMIN_PASSWORD, CLOUDFLARE_API_TOKEN. Sin ellos se generan aleatorios
@@ -225,6 +229,67 @@ EOF
     seal_secret_file "$secret_file" "${SECRETS_DIR}/argocd-redis-sealed.yaml"
 }
 
+# --- grafana-cloud (credenciales de Grafana Cloud para Alloy/k8s-monitoring) -
+generate_grafana_cloud() {
+    echo "🔐 [grafana-cloud] Generating Grafana Cloud credentials secret (ns=monitoring)..."
+
+    if [ -z "${GRAFANA_CLOUD_PROM_USER:-}" ] || [ -z "${GRAFANA_CLOUD_LOKI_USER:-}" ] || [ -z "${GRAFANA_CLOUD_TOKEN:-}" ]; then
+        echo "❌ Faltan GRAFANA_CLOUD_PROM_USER / GRAFANA_CLOUD_LOKI_USER / GRAFANA_CLOUD_TOKEN (ponlos en .env.local)."
+        echo "   Los IDs numéricos y el token salen de Grafana Cloud → Stack → Details."
+        exit 1
+    fi
+
+    local secret_file="$TMP_DIR/grafana-cloud-credentials-secret.yaml"
+    cat > "$secret_file" << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-cloud-credentials
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/managed-by: kubeseal
+    app.kubernetes.io/component: monitoring
+type: Opaque
+stringData:
+  prometheus-username: "${GRAFANA_CLOUD_PROM_USER}"
+  loki-username: "${GRAFANA_CLOUD_LOKI_USER}"
+  access-token: ${GRAFANA_CLOUD_TOKEN}
+EOF
+
+    seal_secret_file "$secret_file" "${SECRETS_DIR}/grafana-cloud-credentials-sealed.yaml"
+}
+
+# --- velero (credenciales S3 de Cloudflare R2 para backups) ------------------
+generate_velero() {
+    echo "🔐 [velero] Generating Velero R2 credentials secret (ns=velero)..."
+
+    if [ -z "${R2_ACCESS_KEY_ID:-}" ] || [ -z "${R2_SECRET_ACCESS_KEY:-}" ]; then
+        echo "❌ Faltan R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY (ponlos en .env.local)."
+        echo "   Se crean en Cloudflare → R2 → Manage API Tokens (scoped al bucket de backups)."
+        exit 1
+    fi
+
+    local secret_file="$TMP_DIR/velero-r2-credentials-secret.yaml"
+    cat > "$secret_file" << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: velero-r2-credentials
+  namespace: velero
+  labels:
+    app.kubernetes.io/managed-by: kubeseal
+    app.kubernetes.io/component: velero
+type: Opaque
+stringData:
+  cloud: |
+    [default]
+    aws_access_key_id=${R2_ACCESS_KEY_ID}
+    aws_secret_access_key=${R2_SECRET_ACCESS_KEY}
+EOF
+
+    seal_secret_file "$secret_file" "${SECRETS_DIR}/velero-r2-credentials-sealed.yaml"
+}
+
 # --- cloudflare (token DNS-01 para cert-manager) ----------------------------
 generate_cloudflare() {
     echo "🔐 [cloudflare] Generating Cloudflare API token secret (ns=cert-manager)..."
@@ -280,14 +345,22 @@ main() {
         argocd-redis)
             generate_argocd_redis
             ;;
+        grafana-cloud)
+            generate_grafana_cloud
+            ;;
+        velero)
+            generate_velero
+            ;;
         all)
             generate_basic_auth
             generate_grafana
             generate_cloudflare
             generate_argocd_redis
+            # grafana-cloud NO va en 'all': requiere cuenta externa y sus
+            # variables; se genera explícitamente (--component grafana-cloud)
             ;;
         *)
-            echo "❌ Componente desconocido: $COMPONENT (basic-auth|grafana|cloudflare|argocd-redis|all)"
+            echo "❌ Componente desconocido: $COMPONENT (basic-auth|grafana|cloudflare|argocd-redis|grafana-cloud|velero|all)"
             exit 1
             ;;
     esac

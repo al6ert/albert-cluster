@@ -1,0 +1,19 @@
+environments:
+  minikube: {}
+  netcup: {}
+
+---
+repositories:
+  - name: bedag
+    url: https://bedag.github.io/helm-charts
+
+releases:
+  - name: policies
+    namespace: default
+    chart: bedag/raw
+    version: {{ env "RAW_CHART_VERSION" }}
+    values:
+      - values.yaml
+      - ../../envs/{{ .Environment.Name }}/policies-values.yaml
+    wait: true
+    timeout: 120

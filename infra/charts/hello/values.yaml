@@ -32,6 +32,12 @@ securityContext:
   seccompProfile:
     type: RuntimeDefault
 
+# NetworkPolicy de referencia: ingress solo desde el Gateway y monitoring.
+# Sin enforcement en flannel/minikube (declarativa); ver docs/architecture.md.
+networkPolicy:
+  enabled: true
+  allowFromNamespaces: [traefik, monitoring]
+
 # Exposición vía Gateway API (HTTPRoute). El TLS se termina en el listener
 # del Gateway, así que aquí solo se declara el hostname.
 route:

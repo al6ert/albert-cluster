@@ -25,4 +25,7 @@ helmfiles:
   - path: ./argocd/helmfile.yaml.gotmpl         # wave 2
   - path: ./hello/helmfile.yaml.gotmpl          # wave 3
   - path: ./prometheus/helmfile.yaml.gotmpl     # wave 3
+  - path: ./monitoring/helmfile.yaml.gotmpl     # wave 3 (solo netcup)
+  - path: ./velero/helmfile.yaml.gotmpl         # wave 3 (solo netcup)
+  - path: ./policies/helmfile.yaml.gotmpl       # wave 3
 

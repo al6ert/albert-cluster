@@ -1,0 +1,23 @@
+environments:
+  minikube: {}
+  netcup: {}
+
+---
+repositories:
+  - name: vmware-tanzu
+    url: https://vmware-tanzu.github.io/helm-charts
+
+releases:
+  - name: velero
+    namespace: velero
+    createNamespace: true
+    chart: vmware-tanzu/velero
+    version: {{ env "VELERO_CHART_VERSION" }}
+    # Solo producción: los backups protegen netcup; minikube es desechable
+    # (el drill de DR se hace a mano, ver docs/runbooks/disaster-recovery.md).
+    installed: {{ eq .Environment.Name "netcup" }}
+    values:
+      - values.yaml.gotmpl
+      - ../../envs/{{ .Environment.Name }}/velero-values.yaml
+    wait: true
+    timeout: 300

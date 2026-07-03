@@ -1,0 +1,22 @@
+# infra/envs/netcup/velero-values.yaml
+#
+# ⚠️ PREREQUISITO antes de promocionar a main:
+# 1. Crear bucket R2 "albert-cluster-backups" en Cloudflare y un API token
+#    S3 (Object Read & Write) scoped SOLO a ese bucket.
+# 2. Sustituir REPLACE-ME por el account id de Cloudflare.
+# 3. En .env.local: R2_ACCESS_KEY_ID y R2_SECRET_ACCESS_KEY; después:
+#    ./scripts/generate-credentials.sh --component velero   (kubectl → netcup)
+#    y commitear el sellado.
+
+configuration:
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: albert-cluster-backups
+      config:
+        region: auto
+        s3ForcePathStyle: "true"
+        s3Url: https://REPLACE-ME.r2.cloudflarestorage.com
+        # Imprescindible con R2: el SDK v2 de AWS activa checksums que R2
+        # no soporta y los uploads fallan
+        checksumAlgorithm: ""

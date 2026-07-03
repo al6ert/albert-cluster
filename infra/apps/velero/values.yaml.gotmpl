@@ -1,0 +1,71 @@
+# Velero — backups del cluster a Cloudflare R2 (S3-compatible).
+# Credenciales: Secret velero-r2-credentials (SealedSecret; ver
+# scripts/generate-credentials.sh --component velero). Bucket y endpoint por
+# entorno en infra/envs/netcup/velero-values.yaml.
+# CRDs en infra/bootstrap/crds/velero-crds.yaml (upgradeCRDs: false: sin
+# Jobs-hook, convención del repo). Runbook: docs/runbooks/disaster-recovery.md.
+
+initContainers:
+  - name: velero-plugin-for-aws
+    # Ligada a VELERO_CHART_VERSION: actualizar A LA VEZ que el chart
+    image: velero/velero-plugin-for-aws:{{ env "VELERO_AWS_PLUGIN_VERSION" }}
+    volumeMounts:
+      - mountPath: /target
+        name: plugins
+
+credentials:
+  useSecret: true
+  existingSecret: velero-r2-credentials
+
+# Sin Jobs-hook de upgrade de CRDs (viven en bootstrap)
+upgradeCRDs: false
+
+# node-agent (kopia): backup de PVs por filesystem — R2 no hace snapshots.
+# Hoy no hay PVs críticos; queda listo para las primeras apps con estado.
+deployNodeAgent: true
+
+configuration:
+  # BSL por entorno (bucket/endpoint) — ver envs/netcup/velero-values.yaml
+  volumeSnapshotLocation: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+schedules:
+  # Lo crítico nº1: la clave privada del controller de sealed-secrets.
+  # Sin ella, TODOS los *-sealed.yaml del repo son irrecuperables.
+  # Retención larga (90d) porque el controller rota claves (~30d) y hay que
+  # conservar TODAS las claves del label, no solo la activa.
+  sealed-secrets-key:
+    disabled: false
+    schedule: "0 3 * * *"
+    template:
+      ttl: 2160h   # 90 días
+      includedNamespaces: ["kube-system"]
+      labelSelector:
+        matchExpressions:
+          - key: sealedsecrets.bitnami.com/sealed-secrets-key
+            operator: Exists
+      includeClusterResources: false
+      snapshotVolumes: false
+  # Red de seguridad: todos los recursos del cluster (sin PVs, sin ruido).
+  # El estado deseado vive en Git; esto cubre lo generado en runtime
+  # (certificados emitidos, secrets dessellados, passwords iniciales...).
+  cluster-config:
+    disabled: false
+    schedule: "30 3 * * *"
+    template:
+      ttl: 720h    # 30 días
+      excludedResources:
+        - events
+        - events.events.k8s.io
+        - pods
+        - replicasets.apps
+        - endpoints
+        - endpointslices.discovery.k8s.io
+      snapshotVolumes: false

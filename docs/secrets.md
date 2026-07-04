@@ -48,11 +48,11 @@ irrecuperables. Doble respaldo:
 Restauración: [runbook DR](runbooks/disaster-recovery.md) — la clave se aplica
 **antes** de que el controller arranque.
 
-## `.env.local` (no versionado)
+## `.env` (no versionado)
 
 Único fichero con los valores en claro que `generate-credentials.sh` sella.
 El esquema canónico (con placeholders) vive versionado en
-[`.env.local.example`](../.env.local.example): cópialo a `.env.local` y
+[`.env.example`](../.env.example): cópialo a `.env` y
 rellénalo. Si una variable falta, su componente genera un valor aleatorio
 (salvo los tokens externos, obligatorios donde se indica).
 
@@ -60,10 +60,10 @@ rellénalo. Si una variable falta, su componente genera un valor aleatorio
 > para local: el cluster contra el que se sella lo decide el **contexto de
 > kubectl**, no el fichero (los `SealedSecret` van atados a su cluster). Por eso
 > `deploy-local.sh` sella los dummy locales en un dir temporal con este mismo
-> `.env.local`.
+> `.env`.
 
 ```bash
-# .env.local  (en .gitignore; esquema completo en .env.local.example)
+# .env  (en .gitignore; esquema completo en .env.example)
 TRAEFIK_LOGIN=admin          # login del dashboard de Traefik (basic-auth)
 TRAEFIK_PASSWORD=...          # su contraseña
 CLOUDFLARE_API_TOKEN=...      # token DNS de Cloudflare (obligatorio para prod)
@@ -79,12 +79,14 @@ R2_SECRET_ACCESS_KEY=...      #                                    ┘ (solo si 
 
 ```bash
 # kubectl apuntando al cluster correcto (¡el sellado va ligado a él!)
-# 1. Actualiza el valor en .env.local (o deja que se genere aleatorio)
+# 1. Actualiza el valor en .env (o deja que se genere aleatorio)
 ./scripts/generate-credentials.sh --component grafana   # o all / basic-auth / cloudflare
 # 2. Commitea el nuevo sellado
 git add infra/bootstrap/secrets/grafana-admin-sealed.yaml
 git commit -m 'chore: rotate grafana admin secret'
-# 3. En prod, push → ArgoCD lo aplica. En local, kubectl apply -f ...
+# 3. Aplícalo al cluster. Los sellados de bootstrap/secrets NO los gestiona
+#    ArgoCD (viven fuera de infra/apps): se aplican a mano o por bootstrap-prod.
+kubectl apply -f infra/bootstrap/secrets/grafana-admin-sealed.yaml
 ```
 
 ## <a id="argocd"></a>Password de ArgoCD admin

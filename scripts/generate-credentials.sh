@@ -19,10 +19,10 @@ set -euo pipefail
 #               namespace velero; requiere R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY)
 #   all         todos salvo grafana-cloud y velero (requieren cuenta externa; generar aparte)
 #
-# Passwords fijos via .env.local (no versionado). Un ÚNICO fichero para AMBOS
+# Passwords fijos via .env (no versionado). Un ÚNICO fichero para AMBOS
 # entornos: el cluster destino lo elige el contexto de kubectl, NO el fichero
 # (los SealedSecrets van atados al cluster que los selló). Esquema canónico y
-# documentado en .env.local.example. Variables por componente:
+# documentado en .env.example. Variables por componente:
 #   basic-auth     TRAEFIK_LOGIN (login del dashboard, def. admin) + TRAEFIK_PASSWORD
 #   grafana        GRAFANA_ADMIN_PASSWORD
 #   cloudflare     CLOUDFLARE_API_TOKEN (obligatoria)
@@ -38,14 +38,16 @@ source "${SCRIPT_DIR}/../versions.env"
 # deploy-local.sh lo redirige a un dir temporal para no pisar los sellados de prod.
 SECRETS_DIR="${SECRETS_DIR:-${SCRIPT_DIR}/../infra/bootstrap/secrets}"
 
-# Cargar passwords fijos desde .env.local si existe
-ENV_LOCAL_FILE="${SCRIPT_DIR}/../.env.local"
-if [ -f "$ENV_LOCAL_FILE" ]; then
-    # Exporta las variables definidas en .env.local
-    set -a
-    . "$ENV_LOCAL_FILE"
-    set +a
-fi
+# Cargar passwords fijos: .env (canónico) o .env.local (compat histórica).
+# Se usa el primero que exista.
+for _envf in "${SCRIPT_DIR}/../.env" "${SCRIPT_DIR}/../.env.local"; do
+    if [ -f "$_envf" ]; then
+        set -a
+        . "$_envf"
+        set +a
+        break
+    fi
+done
 
 # Default values (can be overridden)
 COMPONENT="${COMPONENT:-basic-auth}"
@@ -78,7 +80,7 @@ while [[ $# -gt 0 ]]; do
         --help|-h)
             echo "Usage: $0 [--component basic-auth|grafana|cloudflare|argocd-redis|grafana-cloud|velero|all] [--namespace NS] [--users \"u1,u2\"] [--secret-name NAME]"
             echo ""
-            echo "Environment variables (.env.local — ver .env.local.example):"
+            echo "Environment variables (.env — ver .env.example):"
             echo "  TRAEFIK_LOGIN, TRAEFIK_PASSWORD      basic-auth (login del dashboard)"
             echo "  GRAFANA_ADMIN_PASSWORD               grafana"
             echo "  CLOUDFLARE_API_TOKEN                 cloudflare (obligatoria)"
@@ -241,7 +243,7 @@ generate_grafana_cloud() {
     echo "🔐 [grafana-cloud] Generating Grafana Cloud credentials secret (ns=monitoring)..."
 
     if [ -z "${GRAFANA_CLOUD_PROM_USER:-}" ] || [ -z "${GRAFANA_CLOUD_LOKI_USER:-}" ] || [ -z "${GRAFANA_CLOUD_TOKEN:-}" ]; then
-        echo "❌ Faltan GRAFANA_CLOUD_PROM_USER / GRAFANA_CLOUD_LOKI_USER / GRAFANA_CLOUD_TOKEN (ponlos en .env.local)."
+        echo "❌ Faltan GRAFANA_CLOUD_PROM_USER / GRAFANA_CLOUD_LOKI_USER / GRAFANA_CLOUD_TOKEN (ponlos en .env)."
         echo "   Los IDs numéricos y el token salen de Grafana Cloud → Stack → Details."
         exit 1
     fi
@@ -271,7 +273,7 @@ generate_velero() {
     echo "🔐 [velero] Generating Velero R2 credentials secret (ns=velero)..."
 
     if [ -z "${R2_ACCESS_KEY_ID:-}" ] || [ -z "${R2_SECRET_ACCESS_KEY:-}" ]; then
-        echo "❌ Faltan R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY (ponlos en .env.local)."
+        echo "❌ Faltan R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY (ponlos en .env)."
         echo "   Se crean en Cloudflare → R2 → Manage API Tokens (scoped al bucket de backups)."
         exit 1
     fi
@@ -302,7 +304,7 @@ generate_cloudflare() {
     echo "🔐 [cloudflare] Generating Cloudflare API token secret (ns=cert-manager)..."
 
     if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-        echo "❌ CLOUDFLARE_API_TOKEN no está definido (ponlo en .env.local)."
+        echo "❌ CLOUDFLARE_API_TOKEN no está definido (ponlo en .env)."
         exit 1
     fi
 

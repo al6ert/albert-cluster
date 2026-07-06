@@ -21,5 +21,6 @@ releases:
       - values.yaml
       - ../../envs/{{ .Environment.Name }}/langfuse-values.yaml
     wait: true
-    # Primer arranque frío: migraciones de ClickHouse/Postgres + pulls grandes
-    timeout: 600
+    # Primer arranque frío: migraciones de ClickHouse/Postgres tras el pull de
+    # ~5GB de imágenes (dev-ci las pre-pullea; aun así, margen holgado)
+    timeout: 900

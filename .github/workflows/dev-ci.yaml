@@ -215,6 +215,20 @@ jobs:
           source versions.env
           minikube ssh "docker pull traefik:${TRAEFIK_IMAGE_VERSION}; docker pull quay.io/jetstack/cert-manager-controller:${CERT_MANAGER_IMAGE_VERSION}"
 
+          # Langfuse: ~5GB en 6 imágenes. El kubelet las baja EN SERIE dentro
+          # del --wait de helm → context deadline exceeded (visto 2026-07-06).
+          # Pre-pull en paralelo con docker, sacando la lista del render para
+          # que se automantenga cuando Renovate suba versiones.
+          cd infra/apps
+          helmfile --environment minikube -f langfuse/helmfile.yaml.gotmpl template 2>/dev/null \
+            | grep -E '^\s+image: ' | sed -E 's/^\s+image: *"?([^" ]+)"?.*/\1/' | sort -u > /tmp/langfuse-images.txt
+          echo "Pre-pulling langfuse images:"; cat /tmp/langfuse-images.txt
+          while read -r img; do
+            minikube ssh "docker pull $img" > /dev/null 2>&1 &
+          done < /tmp/langfuse-images.txt
+          wait
+          echo "✅ Pre-pull completado"
+
       - name: Deploy applications to Minikube
         run: |
           cd infra/apps
@@ -241,6 +255,14 @@ jobs:
             exit 1
           }
           echo "✅ Certificate wildcard-minikube-tls ready"
+
+      - name: Debug Langfuse if deployment fails
+        if: failure()
+        run: |
+          kubectl get pods -n langfuse -o wide || true
+          kubectl get pvc -n langfuse || true
+          kubectl get events -n langfuse --sort-by=.lastTimestamp | tail -40 || true
+          kubectl describe pods -n langfuse | grep -B2 -A12 "Events:" || true
 
       - name: Debug Traefik if deployment fails
         if: failure()

@@ -1,0 +1,122 @@
+# infra/apps/langfuse/values.yaml
+# Langfuse v3 (chart oficial langfuse-k8s). Stack completo autocontenido:
+# web + worker + PostgreSQL + ClickHouse + Valkey (redis) + MinIO (s3),
+# todo con subcharts de Bitnami que el chart pina a imágenes "bitnamilegacy"
+# (congeladas tras el cambio de catálogo de Bitnami 2025 — decisión del
+# upstream, global.security.allowInsecureImages viene true de fábrica).
+#
+# Todos los secretos salen del Secret único `langfuse-secrets` (SealedSecret;
+# se genera con scripts/generate-credentials.sh --component langfuse).
+# ⚠️ salt y encryption-key cifran datos ya escritos: NO regenerarlos una vez
+# haya datos (por eso langfuse no está en el componente 'all' del script).
+#
+# nextauth.url, HTTPRoute (extraManifests) y tamaños de PV: por entorno.
+
+langfuse:
+  salt:
+    secretKeyRef:
+      name: langfuse-secrets
+      key: salt
+  encryptionKey:
+    secretKeyRef:
+      name: langfuse-secrets
+      key: encryption-key
+  nextauth:
+    secret:
+      secretKeyRef:
+        name: langfuse-secrets
+        key: nextauth-secret
+  features:
+    telemetryEnabled: false
+    # Tras crear tu usuario en la primera visita, poner a true (instancia
+    # pública en internet: cualquiera podría registrarse).
+    signUpDisabled: false
+  web:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1536Mi
+  worker:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1536Mi
+
+postgresql:
+  auth:
+    existingSecret: langfuse-secrets
+    secretKeys:
+      # username=postgres → admin y user son la misma contraseña
+      adminPasswordKey: postgres-password
+      userPasswordKey: postgres-password
+  primary:
+    persistence:
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+clickhouse:
+  # Defaults del chart = cluster de 3 réplicas + zookeeper + preset 2xlarge:
+  # inviable en un nodo de 16GB. Instancia única, sin coordinación.
+  clusterEnabled: false
+  shards: 1
+  replicaCount: 1
+  zookeeper:
+    enabled: false
+  auth:
+    existingSecret: langfuse-secrets
+    existingSecretKey: clickhouse-password
+  persistence:
+    size: 10Gi
+  # resources explícitos anulan resourcesPreset (2xlarge) del subchart
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 3Gi
+
+redis:
+  auth:
+    existingSecret: langfuse-secrets
+    existingSecretPasswordKey: redis-password
+  primary:
+    persistence:
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+s3:
+  auth:
+    existingSecret: langfuse-secrets
+    rootUserSecretKey: s3-root-user
+    rootPasswordSecretKey: s3-root-password
+  persistence:
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# extraManifests (HTTPRoute) vive en envs/*/langfuse-values.yaml: es una LISTA
+# y Helm reemplaza las listas enteras en el merge — definirla solo una vez.

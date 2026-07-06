@@ -1,0 +1,7 @@
+# infra/envs/minikube/storage-values.yaml
+# minikube ya trae la StorageClass "standard" como default: openebs-hostpath
+# se instala igualmente (así CI valida el chart) pero SIN ser default para no
+# tener dos clases por defecto (comportamiento indefinido).
+hostpathClass:
+  isDefaultClass: false
+  reclaimPolicy: Delete

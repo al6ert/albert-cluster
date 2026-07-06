@@ -1,0 +1,8 @@
+# infra/envs/netcup/storage-values.yaml
+# netcup no tenía NINGUNA StorageClass (verificado 2026-07-06): esta pasa a
+# ser la default del cluster. Retain: al borrar un PVC el PV (y sus datos en
+# /var/openebs/local) se conserva — limpieza manual a cambio de no perder
+# datos de la primera app con estado por un prune accidental.
+hostpathClass:
+  isDefaultClass: true
+  reclaimPolicy: Retain

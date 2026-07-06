@@ -8,3 +8,5 @@ resources:
   - hello.yaml
   - monitoring.yaml
   - velero.yaml
+  - openebs.yaml
+  - langfuse.yaml

@@ -52,12 +52,18 @@ jobs:
 
           # minikube ⊆ netcup: hay apps solo-prod (monitoring, velero), pero
           # nada puede existir en minikube y faltar en netcup.
-          missing=$(comm -23 <(echo "$minikube_ns") <(echo "$netcup_ns"))
+          # Excepción: "monitoring" es minikube-only mientras kube-prometheus-stack
+          # está EN RETIRADA (PROMETHEUS_ENABLED=false en netcup, verificado:
+          # prod nunca lo desplegó). El sustituto, Alloy→Grafana Cloud, es
+          # netcup-only-cuando-MONITORING_ENABLED. Quitar esta excepción al
+          # decidir la retirada definitiva (backlog del assessment).
+          MINIKUBE_ONLY_ALLOWED="monitoring"
+          missing=$(comm -23 <(echo "$minikube_ns") <(echo "$netcup_ns") | grep -vxF "$MINIKUBE_ONLY_ALLOWED" || true)
           if [ -n "$missing" ]; then
             echo "::error::Namespaces en minikube que faltan en netcup: $missing"
             exit 1
           fi
-          echo "✅ Namespaces consistentes (minikube ⊆ netcup)"
+          echo "✅ Namespaces consistentes (minikube ⊆ netcup, salvo excepción documentada: monitoring)"
 
       - name: Setup Minikube
         uses: medyagh/setup-minikube@v0.0.15

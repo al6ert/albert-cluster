@@ -12,6 +12,16 @@
 #
 # nextauth.url, HTTPRoute (extraManifests) y tamaños de PV: por entorno.
 
+# StorageClass explícita para los 4 subcharts Bitnami (postgres/clickhouse/
+# valkey/minio heredan global.storageClass). Necesario porque la default del
+# cluster no sirve en ninguno de los dos entornos:
+#   - netcup: openebs-hostpath ES la default, pero explícito evita sorpresas.
+#   - minikube CI: el workflow DESACTIVA el storage-provisioner (la clase
+#     "standard" queda sin quien cree volúmenes → PVCs colgados). openebs
+#     (app "storage", wave 2) es el único provisioner vivo.
+global:
+  storageClass: openebs-hostpath
+
 langfuse:
   salt:
     secretKeyRef:

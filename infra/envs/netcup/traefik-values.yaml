@@ -25,6 +25,39 @@ extraObjects:
         name: letsencrypt-prod
         kind: ClusterIssuer
 
+  # Catch-all: cualquier subdominio sin ruta registrada redirige a la web
+  # principal. priority: 1 garantiza que es el último recurso y nunca pisa
+  # rutas reales (HTTPRoutes de apps, dashboard, Ingress), vengan del
+  # proveedor que vengan. 302 (no permanente) para que los navegadores no
+  # cacheen la redirección si un subdominio pasa a tener app en el futuro.
+  - apiVersion: traefik.io/v1alpha1
+    kind: Middleware
+    metadata:
+      name: redirect-unknown-hosts
+      namespace: traefik
+    spec:
+      redirectRegex:
+        regex: '.*'
+        replacement: 'https://albertperez.dev'
+        permanent: false
+  - apiVersion: traefik.io/v1alpha1
+    kind: IngressRoute
+    metadata:
+      name: catchall-redirect
+      namespace: traefik
+    spec:
+      entryPoints: ["websecure"]
+      routes:
+        - match: HostRegexp(`^.+\.albertperez\.dev$`)
+          kind: Rule
+          priority: 1
+          middlewares:
+            - name: redirect-unknown-hosts
+              namespace: traefik
+          services:
+            - kind: TraefikService
+              name: noop@internal
+
 # Listener HTTPS del Gateway con el certificado wildcard de producción
 gateway:
   listeners:

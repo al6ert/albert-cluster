@@ -1,0 +1,26 @@
+environments:
+  minikube: {}
+  netcup: {}
+
+---
+repositories:
+  - name: langfuse
+    url: https://langfuse.github.io/langfuse-k8s
+
+releases:
+  - name: langfuse
+    namespace: langfuse
+    createNamespace: true
+    chart: langfuse/langfuse
+    version: {{ env "LANGFUSE_CHART_VERSION" }}
+    # En minikube/CI siempre (con secreto generado al vuelo); en netcup solo
+    # cuando el SealedSecret langfuse-secrets esté sellado contra prod y
+    # LANGFUSE_ENABLED=true (versions.env) — mismo patrón que monitoring.
+    installed: {{ or (ne .Environment.Name "netcup") (eq (env "LANGFUSE_ENABLED" | default "false") "true") }}
+    values:
+      - values.yaml
+      - ../../envs/{{ .Environment.Name }}/langfuse-values.yaml
+    wait: true
+    # Primer arranque frío: migraciones de ClickHouse/Postgres tras el pull de
+    # ~5GB de imágenes (dev-ci las pre-pullea; aun así, margen holgado)
+    timeout: 900

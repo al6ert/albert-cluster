@@ -89,3 +89,82 @@ resources:
           defaultRequest:
             cpu: 50m
             memory: 64Mi
+
+  # ---------------- langfuse ----------------
+  # Stack completo (web+worker+postgres+clickhouse+valkey+minio): la quota
+  # tiene que dar cabida a los resources de infra/apps/langfuse/values.yaml
+  # (~1,2 CPU / ~2,7Gi requests; ~5,3 CPU / ~7,3Gi limits) + jobs de migración.
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: default-deny-ingress
+      namespace: langfuse
+    spec:
+      podSelector: {}
+      policyTypes: [Ingress]
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-from-traefik
+      namespace: langfuse
+    spec:
+      # Solo la web recibe tráfico del Gateway; el resto del stack es interno
+      podSelector: {}
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: traefik
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-from-monitoring
+      namespace: langfuse
+    spec:
+      podSelector: {}
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: monitoring
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: allow-same-namespace
+      namespace: langfuse
+    spec:
+      # web/worker ↔ postgres/clickhouse/valkey/minio
+      podSelector: {}
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - podSelector: {}
+  - apiVersion: v1
+    kind: ResourceQuota
+    metadata:
+      name: quota
+      namespace: langfuse
+    spec:
+      hard:
+        requests.cpu: "2"
+        requests.memory: 4Gi
+        limits.cpu: "6"
+        limits.memory: 9Gi
+        pods: "20"
+  - apiVersion: v1
+    kind: LimitRange
+    metadata:
+      name: defaults
+      namespace: langfuse
+    spec:
+      limits:
+        - type: Container
+          # Jobs de migración y helpers de los subcharts sin resources propios
+          default:
+            cpu: 500m
+            memory: 512Mi
+          defaultRequest:
+            cpu: 50m
+            memory: 128Mi

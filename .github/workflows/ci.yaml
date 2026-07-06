@@ -52,12 +52,18 @@ jobs:
 
           # minikube ⊆ netcup: hay apps solo-prod (monitoring, velero), pero
           # nada puede existir en minikube y faltar en netcup.
-          missing=$(comm -23 <(echo "$minikube_ns") <(echo "$netcup_ns"))
+          # Excepción: "monitoring" es minikube-only mientras kube-prometheus-stack
+          # está EN RETIRADA (PROMETHEUS_ENABLED=false en netcup, verificado:
+          # prod nunca lo desplegó). El sustituto, Alloy→Grafana Cloud, es
+          # netcup-only-cuando-MONITORING_ENABLED. Quitar esta excepción al
+          # decidir la retirada definitiva (backlog del assessment).
+          MINIKUBE_ONLY_ALLOWED="monitoring"
+          missing=$(comm -23 <(echo "$minikube_ns") <(echo "$netcup_ns") | grep -vxF "$MINIKUBE_ONLY_ALLOWED" || true)
           if [ -n "$missing" ]; then
             echo "::error::Namespaces en minikube que faltan en netcup: $missing"
             exit 1
           fi
-          echo "✅ Namespaces consistentes (minikube ⊆ netcup)"
+          echo "✅ Namespaces consistentes (minikube ⊆ netcup, salvo excepción documentada: monitoring)"
 
       - name: Setup Minikube
         uses: medyagh/setup-minikube@v0.0.15
@@ -67,7 +73,7 @@ jobs:
           minikube-version: latest
           kubernetes-version: ${{ env.KUBERNETES_VERSION }}
           cpus: 4
-          memory: 12288mb
+          memory: 14336mb
           wait: all
 
       - name: Start Minikube Tunnel
@@ -101,6 +107,18 @@ jobs:
           kubectl get events -A --sort-by='.lastTimestamp' | tail -50
           kubectl logs -n cert-manager -l app.kubernetes.io/name=cert-manager --tail=100 || true
           kubectl logs -n traefik -l app.kubernetes.io/name=traefik --tail=100 || true
+          echo "::group::langfuse pods + describe (reason/exit code)"
+          kubectl get pods -n langfuse -o wide || true
+          kubectl describe pods -n langfuse -l app.kubernetes.io/component=web || true
+          echo "::endgroup::"
+          for app in web worker; do
+            echo "::group::logs langfuse-$app (current)"
+            kubectl logs -n langfuse -l "app.kubernetes.io/component=$app" --tail=150 || true
+            echo "::endgroup::"
+            echo "::group::logs langfuse-$app (previous crash)"
+            kubectl logs -n langfuse -l "app.kubernetes.io/component=$app" --previous --tail=150 || true
+            echo "::endgroup::"
+          done
 
       - name: Cleanup
         if: always()

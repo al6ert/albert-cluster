@@ -17,7 +17,11 @@ set -euo pipefail
 #               namespace monitoring; requiere GRAFANA_CLOUD_PROM_USER/LOKI_USER/TOKEN)
 #   velero      credenciales S3 de R2 para backups (Secret velero-r2-credentials,
 #               namespace velero; requiere R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY)
-#   all         todos salvo grafana-cloud y velero (requieren cuenta externa; generar aparte)
+#   langfuse    secretos del stack Langfuse (Secret langfuse-secrets, namespace
+#               langfuse; todas las variables opcionales → aleatorias)
+#   all         todos salvo grafana-cloud y velero (cuenta externa) y langfuse
+#               (regenerar su salt/encryption-key ROMPE los datos cifrados:
+#               sellarlo UNA vez, explícitamente)
 #
 # Passwords fijos via .env (no versionado). Un ÚNICO fichero para AMBOS
 # entornos: el cluster destino lo elige el contexto de kubectl, NO el fichero
@@ -78,7 +82,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "Usage: $0 [--component basic-auth|grafana|cloudflare|argocd-redis|grafana-cloud|velero|all] [--namespace NS] [--users \"u1,u2\"] [--secret-name NAME]"
+            echo "Usage: $0 [--component basic-auth|grafana|cloudflare|argocd-redis|grafana-cloud|velero|langfuse|all] [--namespace NS] [--users \"u1,u2\"] [--secret-name NAME]"
             echo ""
             echo "Environment variables (.env — ver .env.example):"
             echo "  TRAEFIK_LOGIN, TRAEFIK_PASSWORD      basic-auth (login del dashboard)"
@@ -86,6 +90,8 @@ while [[ $# -gt 0 ]]; do
             echo "  CLOUDFLARE_API_TOKEN                 cloudflare (obligatoria)"
             echo "  GRAFANA_CLOUD_PROM_USER/_LOKI_USER/_TOKEN   grafana-cloud"
             echo "  R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY      velero"
+            echo "  LANGFUSE_SALT/_ENCRYPTION_KEY/_NEXTAUTH_SECRET/_POSTGRES_PASSWORD/"
+            echo "  _CLICKHOUSE_PASSWORD/_REDIS_PASSWORD/_S3_ROOT_PASSWORD   langfuse (opcionales)"
             exit 0
             ;;
         *)
@@ -299,6 +305,62 @@ EOF
     seal_secret_file "$secret_file" "${SECRETS_DIR}/velero-r2-credentials-sealed.yaml"
 }
 
+# --- langfuse (Secret único del stack: web/worker + subcharts Bitnami) ------
+generate_langfuse() {
+    echo "🔐 [langfuse] Generating Langfuse stack secrets (ns=langfuse)..."
+
+    local sealed_file="${SECRETS_DIR}/langfuse-secrets-sealed.yaml"
+    if [ -f "$sealed_file" ]; then
+        echo "⚠️  Ya existe $sealed_file."
+        echo "   Regenerar salt/encryption-key ROMPE los datos ya cifrados en la BD."
+        echo "   Si de verdad quieres regenerarlo, borra el fichero antes."
+        exit 1
+    fi
+
+    local salt="${LANGFUSE_SALT:-$(openssl rand -base64 32)}"
+    local nextauth_secret="${LANGFUSE_NEXTAUTH_SECRET:-$(openssl rand -base64 32)}"
+    local encryption_key="${LANGFUSE_ENCRYPTION_KEY:-$(openssl rand -hex 32)}"
+    if ! [[ "$encryption_key" =~ ^[0-9a-f]{64}$ ]]; then
+        echo "❌ LANGFUSE_ENCRYPTION_KEY debe ser exactamente 64 caracteres hex (openssl rand -hex 32)."
+        exit 1
+    fi
+    # HEX (URL-safe) a propósito: langfuse construye DATABASE_URL y
+    # REDIS_CONNECTION_STRING metiendo la contraseña en la URL SIN url-encode.
+    # Con base64 (+, /, =) el parser rompe y confunde el host (P1001 "postgres",
+    # redis ENOTFOUND "default"). hex = [0-9a-f] no tiene ese problema.
+    # Si el usuario fija la variable en .env, se respeta: que use hex también.
+    local pg_password="${LANGFUSE_POSTGRES_PASSWORD:-$(openssl rand -hex 24)}"
+    local ch_password="${LANGFUSE_CLICKHOUSE_PASSWORD:-$(openssl rand -hex 24)}"
+    local redis_password="${LANGFUSE_REDIS_PASSWORD:-$(openssl rand -hex 24)}"
+    local s3_password="${LANGFUSE_S3_ROOT_PASSWORD:-$(openssl rand -hex 24)}"
+
+    local secret_file="$TMP_DIR/langfuse-secrets-secret.yaml"
+    cat > "$secret_file" << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: langfuse-secrets
+  namespace: langfuse
+  labels:
+    app.kubernetes.io/managed-by: kubeseal
+    app.kubernetes.io/component: langfuse
+type: Opaque
+stringData:
+  salt: ${salt}
+  nextauth-secret: ${nextauth_secret}
+  encryption-key: ${encryption_key}
+  postgres-password: ${pg_password}
+  clickhouse-password: ${ch_password}
+  redis-password: ${redis_password}
+  s3-root-user: minio
+  s3-root-password: ${s3_password}
+EOF
+
+    seal_secret_file "$secret_file" "$sealed_file"
+    echo "   (salt y encryption-key quedan solo en el SealedSecret; si quieres"
+    echo "    conservarlas fuera, defínelas en .env ANTES de sellar)"
+}
+
 # --- cloudflare (token DNS-01 para cert-manager) ----------------------------
 generate_cloudflare() {
     echo "🔐 [cloudflare] Generating Cloudflare API token secret (ns=cert-manager)..."
@@ -360,16 +422,20 @@ main() {
         velero)
             generate_velero
             ;;
+        langfuse)
+            generate_langfuse
+            ;;
         all)
             generate_basic_auth
             generate_grafana
             generate_cloudflare
             generate_argocd_redis
-            # grafana-cloud NO va en 'all': requiere cuenta externa y sus
-            # variables; se genera explícitamente (--component grafana-cloud)
+            # grafana-cloud y velero NO van en 'all': requieren cuenta externa.
+            # langfuse tampoco: regenerar su salt/encryption-key rompe los
+            # datos cifrados existentes — se sella UNA vez, explícitamente.
             ;;
         *)
-            echo "❌ Componente desconocido: $COMPONENT (basic-auth|grafana|cloudflare|argocd-redis|grafana-cloud|velero|all)"
+            echo "❌ Componente desconocido: $COMPONENT (basic-auth|grafana|cloudflare|argocd-redis|grafana-cloud|velero|langfuse|all)"
             exit 1
             ;;
     esac

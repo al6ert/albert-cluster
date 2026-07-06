@@ -1,0 +1,155 @@
+# infra/apps/langfuse/values.yaml
+# Langfuse v3 (chart oficial langfuse-k8s). Stack completo autocontenido:
+# web + worker + PostgreSQL + ClickHouse + Valkey (redis) + MinIO (s3),
+# todo con subcharts de Bitnami que el chart pina a imágenes "bitnamilegacy"
+# (congeladas tras el cambio de catálogo de Bitnami 2025 — decisión del
+# upstream, global.security.allowInsecureImages viene true de fábrica).
+#
+# Todos los secretos salen del Secret único `langfuse-secrets` (SealedSecret;
+# se genera con scripts/generate-credentials.sh --component langfuse).
+# ⚠️ salt y encryption-key cifran datos ya escritos: NO regenerarlos una vez
+# haya datos (por eso langfuse no está en el componente 'all' del script).
+#
+# nextauth.url, HTTPRoute (extraManifests) y tamaños de PV: por entorno.
+
+# StorageClass explícita para los 4 subcharts Bitnami (postgres/clickhouse/
+# valkey/minio heredan global.storageClass). Necesario porque la default del
+# cluster no sirve en ninguno de los dos entornos:
+#   - netcup: openebs-hostpath ES la default, pero explícito evita sorpresas.
+#   - minikube CI: el workflow DESACTIVA el storage-provisioner (la clase
+#     "standard" queda sin quien cree volúmenes → PVCs colgados). openebs
+#     (app "storage", wave 2) es el único provisioner vivo.
+global:
+  storageClass: openebs-hostpath
+
+langfuse:
+  salt:
+    secretKeyRef:
+      name: langfuse-secrets
+      key: salt
+  encryptionKey:
+    secretKeyRef:
+      name: langfuse-secrets
+      key: encryption-key
+  nextauth:
+    secret:
+      secretKeyRef:
+        name: langfuse-secrets
+        key: nextauth-secret
+  features:
+    telemetryEnabled: false
+    # Tras crear tu usuario en la primera visita, poner a true (instancia
+    # pública en internet: cualquiera podría registrarse).
+    signUpDisabled: false
+  web:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1536Mi
+    # El chart no expone startupProbe: en el PRIMER arranque web corre las
+    # migraciones de postgres Y clickhouse antes de servir /api/public/health.
+    # Con la liveness por defecto (20s + 3×10s ≈ 50s) el pod muere a media
+    # migración y entra en CrashLoop. Damos ~6 min de gracia vía liveness
+    # holgada; la readiness (más corta) lo mantiene fuera de servicio hasta
+    # que responda sano.
+    livenessProbe:
+      initialDelaySeconds: 60
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 20
+    readinessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 30
+  worker:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1536Mi
+    # Igual que web: el worker también espera a las migraciones y su health
+    # tarda en el arranque frío.
+    livenessProbe:
+      initialDelaySeconds: 60
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 20
+
+postgresql:
+  auth:
+    existingSecret: langfuse-secrets
+    secretKeys:
+      # username=postgres → admin y user son la misma contraseña
+      adminPasswordKey: postgres-password
+      userPasswordKey: postgres-password
+  primary:
+    persistence:
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+clickhouse:
+  # Defaults del chart = cluster de 3 réplicas + zookeeper + preset 2xlarge:
+  # inviable en un nodo de 16GB. Instancia única, sin coordinación.
+  clusterEnabled: false
+  shards: 1
+  replicaCount: 1
+  zookeeper:
+    enabled: false
+  auth:
+    existingSecret: langfuse-secrets
+    existingSecretKey: clickhouse-password
+  persistence:
+    size: 10Gi
+  # resources explícitos anulan resourcesPreset (2xlarge) del subchart
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 3Gi
+
+redis:
+  auth:
+    existingSecret: langfuse-secrets
+    existingSecretPasswordKey: redis-password
+  primary:
+    persistence:
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+s3:
+  auth:
+    existingSecret: langfuse-secrets
+    rootUserSecretKey: s3-root-user
+    rootPasswordSecretKey: s3-root-password
+  persistence:
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# extraManifests (HTTPRoute) vive en envs/*/langfuse-values.yaml: es una LISTA
+# y Helm reemplaza las listas enteras en el merge — definirla solo una vez.

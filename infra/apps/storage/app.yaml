@@ -1,0 +1,5 @@
+# Descubierto por el ApplicationSet (git files generator).
+# Crear este fichero = la app aparece en ArgoCD; borrarlo = se poda.
+name: storage
+namespace: openebs   # destination.namespace de la Application
+wave: "2"       # antes que las apps con estado (langfuse) que piden sus PVs

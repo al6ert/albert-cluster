@@ -156,6 +156,12 @@ apply_bootstrap() {
         bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --component argocd-redis
     kubectl apply -f "${LOCAL_SECRETS_DIR}/argocd-redis-sealed.yaml"
 
+    # Secretos del stack Langfuse (aleatorios en local; los de prod se sellan
+    # aparte contra netcup — ver LANGFUSE_ENABLED en versions.env)
+    SECRETS_DIR="$LOCAL_SECRETS_DIR" \
+        bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --component langfuse
+    kubectl apply -f "${LOCAL_SECRETS_DIR}/langfuse-secrets-sealed.yaml"
+
     # Generate cloudflare-api-token with dummy for local
     echo "Generating dummy Cloudflare API token secret for local..."
     TMP_SECRET_YAML=$(mktemp)

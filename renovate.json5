@@ -61,5 +61,19 @@
       ],
       versioningTemplate: "semver-coerced",
     },
+    // Imágenes de contenedor en values.yaml (apps propias / charts locales):
+    //   image:
+    //     repository: hashicorp/http-echo
+    //     # renovate: datasource=docker depName=hashicorp/http-echo
+    //     tag: "1.0.0"
+    // Cubre el hueco de que los charts --local quedaban fuera del circuito.
+    {
+      customType: "regex",
+      managerFilePatterns: ["/(^|/)infra/.*values\\.yaml$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( registryUrl=(?<registryUrl>\\S+))?\\s*\\n\\s*tag: \"?(?<currentValue>[^\"\\s]+)\"?",
+      ],
+      versioningTemplate: "docker",
+    },
   ],
 }

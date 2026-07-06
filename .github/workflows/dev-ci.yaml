@@ -53,7 +53,7 @@ jobs:
           minikube-version: latest
           kubernetes-version: ${{ env.KUBERNETES_VERSION }}
           cpus: 4
-          memory: 12288mb
+          memory: 14336mb
           wait: all
 
       - name: Start Minikube Tunnel
@@ -145,6 +145,12 @@ jobs:
           ../../scripts/generate-credentials.sh --component argocd-redis
           kubectl apply -f secrets/argocd-redis-sealed.yaml
 
+          # Langfuse: en dir temporal — el componente se niega a regenerar si
+          # el sealed ya existe (proteger salt/encryption-key de prod en el repo)
+          LANGFUSE_SECRETS_DIR=$(mktemp -d)
+          SECRETS_DIR="$LANGFUSE_SECRETS_DIR" ../../scripts/generate-credentials.sh --component langfuse
+          kubectl apply -f "$LANGFUSE_SECRETS_DIR/langfuse-secrets-sealed.yaml"
+
           echo "::group::Generate Cloudflare dummy secret"
           cat <<EOF | kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system --format yaml > secrets/cloudflare-api-token-sealed.yaml
           apiVersion: v1
@@ -209,6 +215,20 @@ jobs:
           source versions.env
           minikube ssh "docker pull traefik:${TRAEFIK_IMAGE_VERSION}; docker pull quay.io/jetstack/cert-manager-controller:${CERT_MANAGER_IMAGE_VERSION}"
 
+          # Langfuse: ~5GB en 6 imágenes. El kubelet las baja EN SERIE dentro
+          # del --wait de helm → context deadline exceeded (visto 2026-07-06).
+          # Pre-pull en paralelo con docker, sacando la lista del render para
+          # que se automantenga cuando Renovate suba versiones.
+          cd infra/apps
+          helmfile --environment minikube -f langfuse/helmfile.yaml.gotmpl template 2>/dev/null \
+            | grep -E '^\s+image: ' | sed -E 's/^\s+image: *"?([^" ]+)"?.*/\1/' | sort -u > /tmp/langfuse-images.txt
+          echo "Pre-pulling langfuse images:"; cat /tmp/langfuse-images.txt
+          while read -r img; do
+            minikube ssh "docker pull $img" > /dev/null 2>&1 &
+          done < /tmp/langfuse-images.txt
+          wait
+          echo "✅ Pre-pull completado"
+
       - name: Deploy applications to Minikube
         run: |
           cd infra/apps
@@ -235,6 +255,22 @@ jobs:
             exit 1
           }
           echo "✅ Certificate wildcard-minikube-tls ready"
+
+      - name: Debug Langfuse if deployment fails
+        if: failure()
+        run: |
+          kubectl get pods -n langfuse -o wide || true
+          kubectl get pvc -n langfuse || true
+          kubectl get events -n langfuse --sort-by=.lastTimestamp | tail -40 || true
+          kubectl describe pods -n langfuse | grep -B2 -A12 "Events:" || true
+          for app in web worker; do
+            echo "::group::logs langfuse-$app (current)"
+            kubectl logs -n langfuse -l "app.kubernetes.io/component=$app" --tail=120 || true
+            echo "::endgroup::"
+            echo "::group::logs langfuse-$app (previous crash)"
+            kubectl logs -n langfuse -l "app.kubernetes.io/component=$app" --previous --tail=120 || true
+            echo "::endgroup::"
+          done
 
       - name: Debug Traefik if deployment fails
         if: failure()

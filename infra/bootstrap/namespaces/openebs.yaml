@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openebs
+  labels:
+    argocd.argoproj.io/managed-by: argocd
+    # PSS: los helper pods del provisioner (init/cleanup de cada PV) montan
+    # hostPath — prohibido incluso en baseline. Mismo caso que velero.
+    pod-security.kubernetes.io/enforce: privileged
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"

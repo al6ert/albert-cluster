@@ -147,11 +147,17 @@ resources:
       name: quota
       namespace: langfuse
     spec:
+      # Holgura para rolling updates: en estado estable el stack usa
+      # ~5,25 CPU / ~7,4Gi de LÍMITES; al actualizar web+worker a la vez
+      # (p.ej. cambio de env) surgen pods extra (+2 CPU / +3Gi límites) que
+      # deben caber, o el rollout se atasca en el admission de la quota
+      # (visto 2026-07-06: limits.cpu=6 rechazaba el surge). Requests siguen
+      # bajos (lo que de verdad reserva el scheduler); los limits sobrecomprometen.
       hard:
-        requests.cpu: "2"
-        requests.memory: 4Gi
-        limits.cpu: "6"
-        limits.memory: 9Gi
+        requests.cpu: "3"
+        requests.memory: 6Gi
+        limits.cpu: "8"
+        limits.memory: 12Gi
         pods: "20"
   - apiVersion: v1
     kind: LimitRange

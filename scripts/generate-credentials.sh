@@ -324,10 +324,15 @@ generate_langfuse() {
         echo "❌ LANGFUSE_ENCRYPTION_KEY debe ser exactamente 64 caracteres hex (openssl rand -hex 32)."
         exit 1
     fi
-    local pg_password="${LANGFUSE_POSTGRES_PASSWORD:-$(openssl rand -base64 24)}"
-    local ch_password="${LANGFUSE_CLICKHOUSE_PASSWORD:-$(openssl rand -base64 24)}"
-    local redis_password="${LANGFUSE_REDIS_PASSWORD:-$(openssl rand -base64 24)}"
-    local s3_password="${LANGFUSE_S3_ROOT_PASSWORD:-$(openssl rand -base64 24)}"
+    # HEX (URL-safe) a propósito: langfuse construye DATABASE_URL y
+    # REDIS_CONNECTION_STRING metiendo la contraseña en la URL SIN url-encode.
+    # Con base64 (+, /, =) el parser rompe y confunde el host (P1001 "postgres",
+    # redis ENOTFOUND "default"). hex = [0-9a-f] no tiene ese problema.
+    # Si el usuario fija la variable en .env, se respeta: que use hex también.
+    local pg_password="${LANGFUSE_POSTGRES_PASSWORD:-$(openssl rand -hex 24)}"
+    local ch_password="${LANGFUSE_CLICKHOUSE_PASSWORD:-$(openssl rand -hex 24)}"
+    local redis_password="${LANGFUSE_REDIS_PASSWORD:-$(openssl rand -hex 24)}"
+    local s3_password="${LANGFUSE_S3_ROOT_PASSWORD:-$(openssl rand -hex 24)}"
 
     local secret_file="$TMP_DIR/langfuse-secrets-secret.yaml"
     cat > "$secret_file" << EOF

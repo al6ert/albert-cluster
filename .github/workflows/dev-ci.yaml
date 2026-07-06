@@ -53,7 +53,7 @@ jobs:
           minikube-version: latest
           kubernetes-version: ${{ env.KUBERNETES_VERSION }}
           cpus: 4
-          memory: 12288mb
+          memory: 14336mb
           wait: all
 
       - name: Start Minikube Tunnel

@@ -38,9 +38,10 @@ langfuse:
         key: nextauth-secret
   features:
     telemetryEnabled: false
-    # Tras crear tu usuario en la primera visita, poner a true (instancia
-    # pública en internet: cualquiera podría registrarse).
-    signUpDisabled: false
+    # Registro cerrado tras crear el usuario owner (2026-07-06): instancia
+    # pública en internet. Para invitar a más gente, usa la gestión de
+    # miembros de la propia UI de Langfuse, no reabras el signup global.
+    signUpDisabled: true
   web:
     resources:
       requests:

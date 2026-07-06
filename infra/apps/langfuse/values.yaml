@@ -49,6 +49,22 @@ langfuse:
       limits:
         cpu: "1"
         memory: 1536Mi
+    # El chart no expone startupProbe: en el PRIMER arranque web corre las
+    # migraciones de postgres Y clickhouse antes de servir /api/public/health.
+    # Con la liveness por defecto (20s + 3×10s ≈ 50s) el pod muere a media
+    # migración y entra en CrashLoop. Damos ~6 min de gracia vía liveness
+    # holgada; la readiness (más corta) lo mantiene fuera de servicio hasta
+    # que responda sano.
+    livenessProbe:
+      initialDelaySeconds: 60
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 20
+    readinessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 30
   worker:
     resources:
       requests:
@@ -57,6 +73,13 @@ langfuse:
       limits:
         cpu: "1"
         memory: 1536Mi
+    # Igual que web: el worker también espera a las migraciones y su health
+    # tarda en el arranque frío.
+    livenessProbe:
+      initialDelaySeconds: 60
+      periodSeconds: 15
+      timeoutSeconds: 5
+      failureThreshold: 20
 
 postgresql:
   auth:

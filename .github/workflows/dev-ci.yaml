@@ -263,6 +263,14 @@ jobs:
           kubectl get pvc -n langfuse || true
           kubectl get events -n langfuse --sort-by=.lastTimestamp | tail -40 || true
           kubectl describe pods -n langfuse | grep -B2 -A12 "Events:" || true
+          for app in web worker; do
+            echo "::group::logs langfuse-$app (current)"
+            kubectl logs -n langfuse -l "app.kubernetes.io/component=$app" --tail=120 || true
+            echo "::endgroup::"
+            echo "::group::logs langfuse-$app (previous crash)"
+            kubectl logs -n langfuse -l "app.kubernetes.io/component=$app" --previous --tail=120 || true
+            echo "::endgroup::"
+          done
 
       - name: Debug Traefik if deployment fails
         if: failure()

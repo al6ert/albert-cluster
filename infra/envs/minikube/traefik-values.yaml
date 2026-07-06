@@ -22,6 +22,37 @@ extraObjects:
         name: local-ca-issuer
         kind: ClusterIssuer
 
+  # Catch-all: cualquier subdominio sin ruta registrada redirige a la web
+  # principal (mismo comportamiento que netcup, con el dominio local).
+  # priority: 1 = último recurso, nunca pisa rutas reales.
+  - apiVersion: traefik.io/v1alpha1
+    kind: Middleware
+    metadata:
+      name: redirect-unknown-hosts
+      namespace: traefik
+    spec:
+      redirectRegex:
+        regex: '.*'
+        replacement: 'https://albertperez.dev'
+        permanent: false
+  - apiVersion: traefik.io/v1alpha1
+    kind: IngressRoute
+    metadata:
+      name: catchall-redirect
+      namespace: traefik
+    spec:
+      entryPoints: ["websecure"]
+      routes:
+        - match: HostRegexp(`^.+\.127\.0\.0\.1\.nip\.io$`)
+          kind: Rule
+          priority: 1
+          middlewares:
+            - name: redirect-unknown-hosts
+              namespace: traefik
+          services:
+            - kind: TraefikService
+              name: noop@internal
+
 # Listener HTTPS del Gateway con el certificado wildcard local
 gateway:
   listeners:

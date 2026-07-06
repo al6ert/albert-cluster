@@ -272,6 +272,54 @@ test_resource_utilization() {
   return 0
 }
 
+# Test 10 – Redirección catch-all de subdominios no registrados
+test_catchall_redirect() {
+  echo "🔀 Test 10: Testing catch-all redirect for unregistered subdomains..."
+
+  local host_ip="127.0.0.1"
+  local host="unregistered-subdomain.127.0.0.1.nip.io"
+  local code redirect_url
+
+  for i in {1..3}; do
+    code=$(curl -k -s -o /dev/null -w "%{http_code}" \
+           --resolve "$host:8443:$host_ip" \
+           "https://$host:8443/" --max-time 20 || echo 000)
+    [ "$code" != 000 ] && break
+    log_warn "Retry $i: catch-all not reachable on port 8443, sleeping 10s..."
+    sleep 10
+  done
+
+  case "$code" in
+    301|302|307|308)
+      redirect_url=$(curl -k -s -o /dev/null -w "%{redirect_url}" \
+                     --resolve "$host:8443:$host_ip" \
+                     "https://$host:8443/" --max-time 20 || echo "")
+      if [[ "$redirect_url" == https://albertperez.dev* ]]; then
+        log_info "Unregistered subdomain redirects ($code) to $redirect_url"
+      else
+        log_error "Redirect points to unexpected URL: $redirect_url"
+        return 1
+      fi
+      ;;
+    *)
+      log_error "Expected 3xx redirect for unregistered subdomain, got: $code"
+      return 1
+      ;;
+  esac
+
+  # Las rutas registradas NO deben redirigir (el catch-all no las pisa)
+  code=$(curl -k -s -o /dev/null -w "%{http_code}" \
+         --resolve "hello.127.0.0.1.nip.io:8443:$host_ip" \
+         "https://hello.127.0.0.1.nip.io:8443/" --max-time 20 || echo 000)
+  if [ "$code" = 200 ]; then
+    log_info "Registered routes still resolve normally (hello: $code)"
+  else
+    log_error "Registered route hello returned $code (catch-all may be shadowing it)"
+    return 1
+  fi
+  return 0
+}
+
 # ---------- Resumen de estado ----------
 show_cluster_status() {
   echo -e "\n📊 Cluster Status Summary:"
@@ -307,6 +355,7 @@ main() {
     test_tls_certificates
     test_sealed_secrets
     test_resource_utilization
+    test_catchall_redirect
   )
 
   # Permite continuar para mostrar el resumen aunque falle una prueba

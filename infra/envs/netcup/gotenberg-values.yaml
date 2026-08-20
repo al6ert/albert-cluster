@@ -1,0 +1,4 @@
+# infra/envs/netcup/gotenberg-values.yaml
+# gotenberg.albertperez.dev vía Gateway API (TLS del wildcard en el Gateway).
+route:
+  hostname: gotenberg.albertperez.dev

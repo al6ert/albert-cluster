@@ -19,6 +19,8 @@ set -euo pipefail
 #               namespace velero; requiere R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY)
 #   langfuse    secretos del stack Langfuse (Secret langfuse-secrets, namespace
 #               langfuse; todas las variables opcionales → aleatorias)
+#   gotenberg   basic auth de la API de Gotenberg (Secret gotenberg-basic-auth,
+#               namespace gotenberg; GOTENBERG_USER/GOTENBERG_PASSWORD opcionales)
 #   all         todos salvo grafana-cloud y velero (cuenta externa) y langfuse
 #               (regenerar su salt/encryption-key ROMPE los datos cifrados:
 #               sellarlo UNA vez, explícitamente)
@@ -32,6 +34,7 @@ set -euo pipefail
 #   cloudflare     CLOUDFLARE_API_TOKEN (obligatoria)
 #   grafana-cloud  GRAFANA_CLOUD_PROM_USER / _LOKI_USER / _TOKEN
 #   velero         R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY
+#   gotenberg      GOTENBERG_USER (def. gotenberg) / GOTENBERG_PASSWORD
 # Sin la variable correspondiente se genera aleatoria (salvo tokens externos).
 
 # Source versions from centralized file
@@ -82,7 +85,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help|-h)
-            echo "Usage: $0 [--component basic-auth|grafana|cloudflare|argocd-redis|grafana-cloud|velero|langfuse|all] [--namespace NS] [--users \"u1,u2\"] [--secret-name NAME]"
+            echo "Usage: $0 [--component basic-auth|grafana|cloudflare|argocd-redis|grafana-cloud|velero|langfuse|gotenberg|all] [--namespace NS] [--users \"u1,u2\"] [--secret-name NAME]"
             echo ""
             echo "Environment variables (.env — ver .env.example):"
             echo "  TRAEFIK_LOGIN, TRAEFIK_PASSWORD      basic-auth (login del dashboard)"
@@ -92,6 +95,7 @@ while [[ $# -gt 0 ]]; do
             echo "  R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY      velero"
             echo "  LANGFUSE_SALT/_ENCRYPTION_KEY/_NEXTAUTH_SECRET/_POSTGRES_PASSWORD/"
             echo "  _CLICKHOUSE_PASSWORD/_REDIS_PASSWORD/_S3_ROOT_PASSWORD   langfuse (opcionales)"
+            echo "  GOTENBERG_USER, GOTENBERG_PASSWORD   gotenberg (opcionales)"
             exit 0
             ;;
         *)
@@ -361,6 +365,37 @@ EOF
     echo "    conservarlas fuera, defínelas en .env ANTES de sellar)"
 }
 
+# --- gotenberg (basic auth nativo de la API; env GOTENBERG_API_BASIC_AUTH_*) --
+generate_gotenberg() {
+    echo "🔐 [gotenberg] Generating Gotenberg API basic auth secret (ns=gotenberg)..."
+
+    local user="${GOTENBERG_USER:-gotenberg}"
+    local password="${GOTENBERG_PASSWORD:-}"
+    if [ -z "$password" ]; then
+        # hex: sin caracteres raros para pegarla en URLs/curl -u
+        password=$(openssl rand -hex 24)
+    fi
+    echo "🔑 gotenberg/$user: $password"
+
+    local secret_file="$TMP_DIR/gotenberg-basic-auth-secret.yaml"
+    cat > "$secret_file" << EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gotenberg-basic-auth
+  namespace: gotenberg
+  labels:
+    app.kubernetes.io/managed-by: kubeseal
+    app.kubernetes.io/component: gotenberg
+type: Opaque
+stringData:
+  username: ${user}
+  password: ${password}
+EOF
+
+    seal_secret_file "$secret_file" "${SECRETS_DIR}/gotenberg-basic-auth-sealed.yaml"
+}
+
 # --- cloudflare (token DNS-01 para cert-manager) ----------------------------
 generate_cloudflare() {
     echo "🔐 [cloudflare] Generating Cloudflare API token secret (ns=cert-manager)..."
@@ -425,17 +460,21 @@ main() {
         langfuse)
             generate_langfuse
             ;;
+        gotenberg)
+            generate_gotenberg
+            ;;
         all)
             generate_basic_auth
             generate_grafana
             generate_cloudflare
             generate_argocd_redis
+            generate_gotenberg
             # grafana-cloud y velero NO van en 'all': requieren cuenta externa.
             # langfuse tampoco: regenerar su salt/encryption-key rompe los
             # datos cifrados existentes — se sella UNA vez, explícitamente.
             ;;
         *)
-            echo "❌ Componente desconocido: $COMPONENT (basic-auth|grafana|cloudflare|argocd-redis|grafana-cloud|velero|langfuse|all)"
+            echo "❌ Componente desconocido: $COMPONENT (basic-auth|grafana|cloudflare|argocd-redis|grafana-cloud|velero|langfuse|gotenberg|all)"
             exit 1
             ;;
     esac

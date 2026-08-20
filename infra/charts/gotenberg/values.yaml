@@ -1,0 +1,88 @@
+# Default values for gotenberg chart
+replicaCount: 1
+
+image:
+  repository: gotenberg/gotenberg
+  # Se inyecta desde versions.env (GOTENBERG_IMAGE_VERSION) vía helmfile
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# Chromium + LibreOffice: una conversión puede pasar de 500Mi de pico.
+resources:
+  limits:
+    cpu: "1"
+    memory: 1536Mi
+  requests:
+    cpu: 200m
+    memory: 512Mi
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+# La imagen corre como usuario gotenberg (uid/gid 1001). Root FS de solo
+# lectura: lo único que escribe es /tmp (workdir de conversiones y perfiles de
+# Chromium/LibreOffice), montado como emptyDir.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+# Tamaño máximo del emptyDir de /tmp (ficheros temporales de conversión)
+tmpVolume:
+  sizeLimit: 1Gi
+
+gotenberg:
+  # Timeout global por petición (conversiones largas → 504 en lugar de colgar)
+  apiTimeout: 60s
+  # Arrancar Chromium/LibreOffice con el pod (primera conversión rápida;
+  # la readiness ya refleja que están listos)
+  autoStart: true
+  # Sin auth, cualquiera en internet puede usar la API (y Chromium puede
+  # navegar a URLs internas del cluster). Con basicAuth.enabled el chart lee
+  # GOTENBERG_API_BASIC_AUTH_USERNAME/PASSWORD del Secret indicado.
+  basicAuth:
+    enabled: true
+    existingSecret: gotenberg-basic-auth
+    usernameKey: username
+    passwordKey: password
+  # Anti-SSRF: además del default (file:// fuera de /tmp), bloquea loopback,
+  # rangos privados/link-local, metadata y nombres de servicio del cluster.
+  # Regex Go (RE2). Se aplica a la navegación de Chromium (URL → PDF).
+  chromiumDenyList: >-
+    ^file:///[^tmp].*|^https?://(localhost|127\.[0-9.]+|0\.0\.0\.0|\[::1\]|10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|192\.168\.[0-9.]+|169\.254\.[0-9.]+|[^/]*\.(svc|cluster\.local|internal|local))(:[0-9]+)?(/.*)?$
+  # Flags adicionales (p. ej. --libreoffice-disable-routes)
+  extraArgs: []
+
+# Anotaciones k8s.grafana.io/scrape para Alloy. Desactivado por defecto:
+# con basicAuth.enabled, /prometheus/metrics TAMBIÉN exige credenciales
+# (verificado 8.36: 401) y el scrape anónimo fallaría. Activar solo tras
+# configurar basic_auth en el scrape de Alloy (docs/observability.md).
+metrics:
+  enabled: false
+
+# NetworkPolicy de referencia: ingress solo desde el Gateway y monitoring.
+# Sin enforcement en flannel/minikube (declarativa); ver docs/architecture.md.
+networkPolicy:
+  enabled: true
+  allowFromNamespaces: [traefik, monitoring]
+
+# Exposición vía Gateway API (HTTPRoute). El TLS se termina en el listener
+# del Gateway, así que aquí solo se declara el hostname.
+route:
+  enabled: true
+  hostname: gotenberg.127.0.0.1.nip.io
+  gateway:
+    name: traefik-gateway
+    namespace: traefik
+    sectionName: websecure

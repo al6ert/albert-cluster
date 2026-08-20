@@ -15,6 +15,7 @@ en `infra/envs/<entorno>/<app>-values.yaml`. Versiones en
 | velero | `vmware-tanzu/velero` | `12.1.0` | `velero` | Backups a R2 (solo netcup) | [velero.io](https://velero.io/docs/) |
 | policies | `bedag/raw` | `2.0.2` | (multi) | NetworkPolicy/quotas por ns de app | [github](https://github.com/bedag/helm-charts/tree/master/charts/raw) |
 | hello | local `infra/charts/hello` | `0.3.0` | `hello` | App de ejemplo/plantilla/canario | — |
+| gotenberg | local `infra/charts/gotenberg` | `0.1.0` (imagen `8.36.0`) | `gotenberg` | API HTML/Office → PDF (`gotenberg.albertperez.dev`) | [gotenberg.dev](https://gotenberg.dev/docs/getting-started/introduction) |
 
 Repos de charts:
 [traefik](https://traefik.github.io/charts) ·
@@ -134,3 +135,34 @@ dejarla como health-check trivial o quitarla cuando tengas apps reales (mismo
 método que prometheus opción B). El chart en `infra/charts/hello` es la
 referencia de cómo se ve una app bien hecha (securityContext, HTTPRoute,
 recursos). Ver [adding-apps.md](adding-apps.md).
+
+## gotenberg
+
+API HTTP stateless para generar PDFs (HTML/Markdown/URL vía Chromium, Office
+vía LibreOffice). Chart local `infra/charts/gotenberg` (imagen oficial
+`gotenberg/gotenberg`, tag pineado en `GOTENBERG_IMAGE_VERSION`). Expuesto en
+`gotenberg.albertperez.dev` por `HTTPRoute`.
+
+Seguridad (la API sin auth permite a cualquiera renderizar URLs **desde dentro
+del cluster**):
+
+- **Basic auth nativo** (`--api-enable-basic-auth`): credenciales en el Secret
+  `gotenberg-basic-auth` (SealedSecret, `generate-credentials.sh --component
+  gotenberg`; `GOTENBERG_USER`/`GOTENBERG_PASSWORD` en `.env` o aleatorias).
+  `/health` queda sin auth para las probes.
+- **Deny-list de Chromium** anti-SSRF: loopback, rangos privados, link-local
+  (metadata) y `*.svc`/`*.cluster.local`.
+- Pod `restricted`: uid 1001, rootfs RO (solo `/tmp` en emptyDir con
+  `sizeLimit`), sin SA token, sin capabilities.
+- `--api-timeout=60s` y límites 1 CPU / 1.5Gi (Chromium+LibreOffice).
+
+Uso:
+
+```bash
+curl -u "$GOTENBERG_USER:$GOTENBERG_PASSWORD" \
+  -F files=@index.html \
+  https://gotenberg.albertperez.dev/forms/chromium/convert/html -o out.pdf
+```
+
+En netcup gateado por `GOTENBERG_ENABLED` (versions.env) hasta que el
+SealedSecret esté sellado contra prod (mismo patrón que langfuse).

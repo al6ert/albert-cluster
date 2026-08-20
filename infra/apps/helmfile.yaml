@@ -30,3 +30,4 @@ helmfiles:
   - path: ./velero/helmfile.yaml.gotmpl         # wave 3 (solo netcup)
   - path: ./policies/helmfile.yaml.gotmpl       # wave 3
   - path: ./langfuse/helmfile.yaml.gotmpl       # wave 3 (netcup: gateado por LANGFUSE_ENABLED)
+  - path: ./gotenberg/helmfile.yaml.gotmpl     # wave 3 (netcup: gateado por GOTENBERG_ENABLED)

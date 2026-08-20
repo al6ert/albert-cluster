@@ -1,0 +1,23 @@
+environments:
+  minikube: {}
+  netcup: {}
+
+---
+releases:
+  - name: gotenberg
+    namespace: gotenberg
+    createNamespace: true
+    chart: ../../charts/gotenberg
+    version: {{ env "GOTENBERG_CHART_VERSION" }}
+    # En minikube/CI siempre (secreto generado al vuelo); en netcup solo
+    # cuando gotenberg-basic-auth esté sellado contra prod y
+    # GOTENBERG_ENABLED=true (versions.env) — mismo patrón que langfuse.
+    installed: {{ or (ne .Environment.Name "netcup") (eq (env "GOTENBERG_ENABLED" | default "false") "true") }}
+    values:
+      - values.yaml
+      - ../../envs/{{ .Environment.Name }}/gotenberg-values.yaml
+      - image:
+          tag: {{ requiredEnv "GOTENBERG_IMAGE_VERSION" | quote }}
+    wait: true
+    timeout: 300
+    atomic: true

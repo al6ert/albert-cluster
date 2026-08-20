@@ -1,0 +1,7 @@
+apiVersion: v2
+name: gotenberg
+description: Gotenberg — API HTTP para convertir HTML/Markdown/Office a PDF (Chromium + LibreOffice)
+type: application
+version: 0.1.0
+# Informativo: la imagen real se pinea por values (image.tag ← GOTENBERG_IMAGE_VERSION)
+appVersion: "8.36.0"

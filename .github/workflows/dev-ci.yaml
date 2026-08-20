@@ -267,6 +267,20 @@ jobs:
           }
           echo "✅ Certificate wildcard-minikube-tls ready"
 
+      - name: Debug Gotenberg if deployment fails
+        if: failure()
+        run: |
+          kubectl get pods -n gotenberg -o wide || true
+          kubectl get events -n gotenberg --sort-by=.lastTimestamp | tail -30 || true
+          kubectl describe pods -n gotenberg | grep -B2 -A20 "Events:" || true
+          kubectl describe node | sed -n '/Allocated resources/,/Events/p' || true
+          echo "::group::logs gotenberg (current)"
+          kubectl logs -n gotenberg -l app.kubernetes.io/name=gotenberg --tail=120 || true
+          echo "::endgroup::"
+          echo "::group::logs gotenberg (previous crash)"
+          kubectl logs -n gotenberg -l app.kubernetes.io/name=gotenberg --previous --tail=120 || true
+          echo "::endgroup::"
+
       - name: Debug Langfuse if deployment fails
         if: failure()
         run: |

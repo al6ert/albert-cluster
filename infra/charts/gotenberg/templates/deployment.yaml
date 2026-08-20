@@ -34,8 +34,10 @@ spec:
         args:
           - --api-port={{ .Values.service.targetPort }}
           - --api-timeout={{ .Values.gotenberg.apiTimeout }}
-          {{- if .Values.gotenberg.autoStart }}
+          {{- if .Values.gotenberg.autoStart.chromium }}
           - --chromium-auto-start=true
+          {{- end }}
+          {{- if .Values.gotenberg.autoStart.libreoffice }}
           - --libreoffice-auto-start=true
           {{- end }}
           {{- if .Values.gotenberg.basicAuth.enabled }}
@@ -65,12 +67,14 @@ spec:
             protocol: TCP
             name: http
         # /health no requiere auth y refleja el estado de Chromium/LibreOffice
+        # Arranque de Chromium (+LibreOffice si autoStart) con 1 CPU de límite
+        # puede pasar de 2 min en runners lentos: hasta 5 min de gracia.
         startupProbe:
           httpGet:
             path: /health
             port: http
           periodSeconds: 5
-          failureThreshold: 24
+          failureThreshold: {{ .Values.startupProbe.failureThreshold }}
         livenessProbe:
           httpGet:
             path: /health

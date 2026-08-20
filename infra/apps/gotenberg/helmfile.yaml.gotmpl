@@ -21,4 +21,5 @@ releases:
     wait: true
     # Imagen de ~1GB: en CI el pull puede comerse casi todo el --wait
     timeout: 600
-    atomic: true
+    # Sin atomic a propósito: si el --wait falla en CI, el paso de debug de
+    # dev-ci necesita el pod vivo para ver eventos/logs (atomic lo desinstala).

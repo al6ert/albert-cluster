@@ -38,6 +38,10 @@ securityContext:
   capabilities:
     drop: ["ALL"]
 
+# startupProbe: periodSeconds 5 × failureThreshold (60 → 5 min)
+startupProbe:
+  failureThreshold: 60
+
 # Tamaño máximo del emptyDir de /tmp (ficheros temporales de conversión)
 tmpVolume:
   sizeLimit: 1Gi
@@ -45,9 +49,12 @@ tmpVolume:
 gotenberg:
   # Timeout global por petición (conversiones largas → 504 en lugar de colgar)
   apiTimeout: 60s
-  # Arrancar Chromium/LibreOffice con el pod (primera conversión rápida;
-  # la readiness ya refleja que están listos)
-  autoStart: true
+  # Arrancar los motores con el pod (primera conversión rápida; la readiness
+  # refleja que están listos). LibreOffice en perezoso por defecto: arranca
+  # en la primera conversión Office y compite menos con Chromium al inicio.
+  autoStart:
+    chromium: true
+    libreoffice: false
   # Sin auth, cualquiera en internet puede usar la API (y Chromium puede
   # navegar a URLs internas del cluster). Con basicAuth.enabled el chart lee
   # GOTENBERG_API_BASIC_AUTH_USERNAME/PASSWORD del Secret indicado.

@@ -98,10 +98,17 @@ spec:
         volumeMounts:
           - name: tmp
             mountPath: /tmp
+          # Chromium escribe su crashpad/config bajo $HOME: con rootfs RO muere
+          # con "chrome_crashpad_handler: --database is required"
+          - name: home
+            mountPath: /home/gotenberg
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: {{ .Values.tmpVolume.sizeLimit }}
+        - name: home
+          emptyDir:
+            sizeLimit: {{ .Values.homeVolume.sizeLimit }}
 ---
 apiVersion: v1
 kind: Service

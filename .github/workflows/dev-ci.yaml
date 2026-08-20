@@ -151,6 +151,14 @@ jobs:
           SECRETS_DIR="$LANGFUSE_SECRETS_DIR" ../../scripts/generate-credentials.sh --component langfuse
           kubectl apply -f "$LANGFUSE_SECRETS_DIR/langfuse-secrets-sealed.yaml"
 
+          # Gotenberg: basic auth de la API (usuario/contraseña fijos en CI para
+          # que el smoke test se autentique); dir temporal para no pisar el
+          # sellado de prod del repo
+          GOTENBERG_SECRETS_DIR=$(mktemp -d)
+          SECRETS_DIR="$GOTENBERG_SECRETS_DIR" GOTENBERG_USER=ci GOTENBERG_PASSWORD=ci-gotenberg \
+            ../../scripts/generate-credentials.sh --component gotenberg
+          kubectl apply -f "$GOTENBERG_SECRETS_DIR/gotenberg-basic-auth-sealed.yaml"
+
           echo "::group::Generate Cloudflare dummy secret"
           cat <<EOF | kubeseal --controller-name=sealed-secrets --controller-namespace=kube-system --format yaml > secrets/cloudflare-api-token-sealed.yaml
           apiVersion: v1
@@ -214,6 +222,9 @@ jobs:
         run: |
           source versions.env
           minikube ssh "docker pull traefik:${TRAEFIK_IMAGE_VERSION}; docker pull quay.io/jetstack/cert-manager-controller:${CERT_MANAGER_IMAGE_VERSION}"
+          # Gotenberg: imagen única de ~1GB (Chromium+LibreOffice); sin pre-pull
+          # el --wait de 300s no llega (visto 2026-08-20)
+          minikube ssh "docker pull gotenberg/gotenberg:${GOTENBERG_IMAGE_VERSION}" > /dev/null 2>&1 &
 
           # Langfuse: ~5GB en 6 imágenes. El kubelet las baja EN SERIE dentro
           # del --wait de helm → context deadline exceeded (visto 2026-07-06).
@@ -256,6 +267,20 @@ jobs:
           }
           echo "✅ Certificate wildcard-minikube-tls ready"
 
+      - name: Debug Gotenberg if deployment fails
+        if: failure()
+        run: |
+          kubectl get pods -n gotenberg -o wide || true
+          kubectl get events -n gotenberg --sort-by=.lastTimestamp | tail -30 || true
+          kubectl describe pods -n gotenberg | grep -B2 -A20 "Events:" || true
+          kubectl describe node | sed -n '/Allocated resources/,/Events/p' || true
+          echo "::group::logs gotenberg (current)"
+          kubectl logs -n gotenberg -l app.kubernetes.io/name=gotenberg --tail=120 || true
+          echo "::endgroup::"
+          echo "::group::logs gotenberg (previous crash)"
+          kubectl logs -n gotenberg -l app.kubernetes.io/name=gotenberg --previous --tail=120 || true
+          echo "::endgroup::"
+
       - name: Debug Langfuse if deployment fails
         if: failure()
         run: |
@@ -297,6 +322,15 @@ jobs:
           kubectl wait deployment -n hello --all --for=condition=Available --timeout=300s
           echo "::endgroup::"
 
+          echo "::group::Wait for Gotenberg"
+          kubectl wait deployment -n gotenberg --all --for=condition=Available --timeout=300s || {
+            kubectl get pods -n gotenberg -o wide
+            kubectl describe pods -n gotenberg | grep -A15 "Events:"
+            kubectl logs -n gotenberg -l app.kubernetes.io/name=gotenberg --tail=100 || true
+            exit 1
+          }
+          echo "::endgroup::"
+
           echo "::group::Wait for Prometheus Stack"
           kubectl wait deployment -n monitoring --all --for=condition=Available --timeout=300s
           echo "::endgroup::"
@@ -317,7 +351,7 @@ jobs:
       - name: Enhanced smoke tests
         run: |
           chmod +x tests/smoke.sh
-          WAIT_TIMEOUT=300s ./tests/smoke.sh
+          WAIT_TIMEOUT=300s GOTENBERG_USER=ci GOTENBERG_PASSWORD=ci-gotenberg ./tests/smoke.sh
 
       - name: Cleanup Minikube
         if: always()

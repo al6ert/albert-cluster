@@ -1,0 +1,18 @@
+# infra/apps/gotenberg/values.yaml
+# Valores base de Gotenberg (chart local infra/charts/gotenberg; el tag de la
+# imagen llega por helmfile desde GOTENBERG_IMAGE_VERSION en versions.env).
+#
+# Auth: basic auth nativo de Gotenberg con el Secret `gotenberg-basic-auth`
+# (SealedSecret; se genera con scripts/generate-credentials.sh --component
+# gotenberg). Los clientes envían Authorization: Basic user:pass.
+# /health queda sin auth (probes); el resto de rutas lo exigen.
+#
+# Hostname por entorno en infra/envs/<entorno>/gotenberg-values.yaml.
+
+replicaCount: 1
+
+gotenberg:
+  apiTimeout: 60s
+  basicAuth:
+    enabled: true
+    existingSecret: gotenberg-basic-auth

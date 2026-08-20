@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gotenberg.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gotenberg.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "gotenberg.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gotenberg.selectorLabels" . | nindent 8 }}
+      {{- if .Values.metrics.enabled }}
+      annotations:
+        k8s.grafana.io/scrape: "true"
+        k8s.grafana.io/metrics.path: /prometheus/metrics
+        k8s.grafana.io/metrics.portNumber: {{ .Values.service.targetPort | quote }}
+      {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["gotenberg"]
+        args:
+          - --api-port={{ .Values.service.targetPort }}
+          - --api-timeout={{ .Values.gotenberg.apiTimeout }}
+          {{- if .Values.gotenberg.autoStart.chromium }}
+          - --chromium-auto-start=true
+          {{- end }}
+          {{- if .Values.gotenberg.autoStart.libreoffice }}
+          - --libreoffice-auto-start=true
+          {{- end }}
+          {{- if .Values.gotenberg.basicAuth.enabled }}
+          - --api-enable-basic-auth=true
+          {{- end }}
+          {{- with .Values.gotenberg.chromiumDenyList }}
+          - --chromium-deny-list={{ . }}
+          {{- end }}
+          {{- range .Values.gotenberg.extraArgs }}
+          - {{ . | quote }}
+          {{- end }}
+        {{- if .Values.gotenberg.basicAuth.enabled }}
+        env:
+          - name: GOTENBERG_API_BASIC_AUTH_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.gotenberg.basicAuth.existingSecret }}
+                key: {{ .Values.gotenberg.basicAuth.usernameKey }}
+          - name: GOTENBERG_API_BASIC_AUTH_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.gotenberg.basicAuth.existingSecret }}
+                key: {{ .Values.gotenberg.basicAuth.passwordKey }}
+        {{- end }}
+        ports:
+          - containerPort: {{ .Values.service.targetPort }}
+            protocol: TCP
+            name: http
+        # /health no requiere auth y refleja el estado de Chromium/LibreOffice
+        # Arranque de Chromium (+LibreOffice si autoStart) con 1 CPU de límite
+        # puede pasar de 2 min en runners lentos: hasta 5 min de gracia.
+        startupProbe:
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 5
+          failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 15
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 5
+        {{- with .Values.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+          # Chromium escribe su crashpad/config bajo $HOME: con rootfs RO muere
+          # con "chrome_crashpad_handler: --database is required"
+          - name: home
+            mountPath: /home/gotenberg
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.tmpVolume.sizeLimit }}
+        - name: home
+          emptyDir:
+            sizeLimit: {{ .Values.homeVolume.sizeLimit }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gotenberg.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gotenberg.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "gotenberg.selectorLabels" . | nindent 4 }}

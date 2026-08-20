@@ -77,6 +77,7 @@ wait_for_sealed_secrets() {
         "admin-basic-auth:admin"
         "cloudflare-api-token:cert-manager"
         "grafana-admin:monitoring"
+        "gotenberg-basic-auth:gotenberg"
     )
 
     for item in "${sealed_secrets[@]}"; do
@@ -162,6 +163,11 @@ apply_bootstrap() {
         bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --component langfuse
     kubectl apply -f "${LOCAL_SECRETS_DIR}/langfuse-secrets-sealed.yaml"
 
+    # Basic auth de la API de Gotenberg (aleatoria en local; se imprime al generar)
+    SECRETS_DIR="$LOCAL_SECRETS_DIR" \
+        bash "${SCRIPT_DIR}/scripts/generate-credentials.sh" --component gotenberg
+    kubectl apply -f "${LOCAL_SECRETS_DIR}/gotenberg-basic-auth-sealed.yaml"
+
     # Generate cloudflare-api-token with dummy for local
     echo "Generating dummy Cloudflare API token secret for local..."
     TMP_SECRET_YAML=$(mktemp)
@@ -233,6 +239,8 @@ deploy_applications() {
     export HELLO_CHART_VERSION
     export ARGOCD_CHART_VERSION
     export PROMETHEUS_CHART_VERSION
+    export GOTENBERG_CHART_VERSION
+    export GOTENBERG_IMAGE_VERSION
 
     # Apply applications idempotently (excluding SealedSecrets as it's already installed in bootstrap)
     helmfile --environment minikube apply --suppress-secrets --selector 'name!=sealed-secrets'

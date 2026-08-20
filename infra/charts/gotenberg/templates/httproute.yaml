@@ -1,0 +1,20 @@
+{{- if .Values.route.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "gotenberg.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gotenberg.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ .Values.route.gateway.name }}
+      namespace: {{ .Values.route.gateway.namespace }}
+      sectionName: {{ .Values.route.gateway.sectionName }}
+  hostnames:
+    - {{ .Values.route.hostname | quote }}
+  rules:
+    - backendRefs:
+        - name: {{ include "gotenberg.fullname" . }}
+          port: {{ .Values.service.port }}
+{{- end }}

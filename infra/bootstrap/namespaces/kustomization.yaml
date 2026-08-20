@@ -10,3 +10,4 @@ resources:
   - velero.yaml
   - openebs.yaml
   - langfuse.yaml
+  - gotenberg.yaml

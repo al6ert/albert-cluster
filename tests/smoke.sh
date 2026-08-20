@@ -94,7 +94,7 @@ test_readiness() {
 # Test 3 – Comprobación de *namespaces* críticos
 test_namespaces() {
   echo "📁 Test 3: Verifying critical namespaces..."
-  local critical_namespaces=(traefik hello admin cert-manager argocd) missing=()
+  local critical_namespaces=(traefik hello admin cert-manager argocd gotenberg) missing=()
   for ns in "${critical_namespaces[@]}"; do
     if kubectl get namespace "$ns" >/dev/null 2>&1; then
       log_debug "Namespace $ns exists"
@@ -114,7 +114,7 @@ test_namespaces() {
 # Test 4 – Servicios críticos
 test_critical_services() {
   echo "🔧 Test 4: Verifying critical services..."
-  local services=( "traefik:traefik" "hello:hello" )
+  local services=( "traefik:traefik" "hello:hello" "gotenberg:gotenberg" )
   for pair in "${services[@]}"; do
     local svc="${pair%:*}" ns="${pair#*:}"
     if kubectl get svc "$svc" -n "$ns" >/dev/null 2>&1; then
@@ -320,6 +320,55 @@ test_catchall_redirect() {
   return 0
 }
 
+# Test 11 – Gotenberg: /health abierto, API con basic auth, conversión real
+test_gotenberg() {
+  echo "📄 Test 11: Testing Gotenberg (health, auth, HTML→PDF)..."
+
+  local host_ip="127.0.0.1" host="gotenberg.127.0.0.1.nip.io"
+  local base="https://$host:8443" code
+
+  for i in {1..3}; do
+    code=$(curl -k -s -o /dev/null -w "%{http_code}" --resolve "$host:8443:$host_ip" \
+           "$base/health" --max-time 20 || echo 000)
+    [ "$code" = 200 ] && break
+    log_warn "Retry $i: Gotenberg /health returned $code, sleeping 10s..."; sleep 10
+  done
+  [ "$code" = 200 ] || { log_error "Gotenberg /health not OK ($code)"; return 1; }
+  log_debug "Gotenberg /health is up"
+
+  # Sin credenciales la API debe rechazar (401)
+  code=$(curl -k -s -o /dev/null -w "%{http_code}" --resolve "$host:8443:$host_ip" \
+         -X POST "$base/forms/chromium/convert/html" --max-time 20 || echo 000)
+  if [ "$code" = 401 ]; then
+    log_debug "Gotenberg API requires auth (401 without credentials)"
+  else
+    log_error "Gotenberg API answered $code without credentials (expected 401)"
+    return 1
+  fi
+
+  # Con credenciales: conversión HTML→PDF real (Chromium)
+  if [ -z "${GOTENBERG_USER:-}" ] || [ -z "${GOTENBERG_PASSWORD:-}" ]; then
+    log_warn "GOTENBERG_USER/GOTENBERG_PASSWORD not set, skipping authenticated conversion"
+    return 0
+  fi
+  local html_file pdf_file
+  html_file=$(mktemp -t index.XXXXXX.html); pdf_file=$(mktemp)
+  echo '<html><body><h1>smoke</h1></body></html>' > "$html_file"
+  code=$(curl -k -s -o "$pdf_file" -w "%{http_code}" --resolve "$host:8443:$host_ip" \
+         -u "$GOTENBERG_USER:$GOTENBERG_PASSWORD" --max-time 90 \
+         -F "files=@$html_file;filename=index.html" \
+         "$base/forms/chromium/convert/html" || echo 000)
+  local magic; magic=$(head -c 4 "$pdf_file" 2>/dev/null || true)
+  rm -f "$html_file" "$pdf_file"
+  if [ "$code" = 200 ] && [ "$magic" = "%PDF" ]; then
+    log_info "Gotenberg HTML→PDF conversion works"
+    return 0
+  fi
+  log_error "Gotenberg conversion failed (http $code, magic '$magic')"
+  kubectl logs -n gotenberg -l app.kubernetes.io/name=gotenberg --tail=50 || true
+  return 1
+}
+
 # ---------- Resumen de estado ----------
 show_cluster_status() {
   echo -e "\n📊 Cluster Status Summary:"
@@ -336,6 +385,7 @@ show_cluster_status() {
   echo -e "\n🌐 Access URLs (minikube):"
   echo "  Traefik Dashboard: https://traefik.127.0.0.1.nip.io/dashboard/"
   echo "  Hello App:        http://hello.127.0.0.1.nip.io"
+  echo "  Gotenberg API:    https://gotenberg.127.0.0.1.nip.io (basic auth)"
 }
 
 # ---------- Ejecución principal ----------
@@ -356,6 +406,7 @@ main() {
     test_sealed_secrets
     test_resource_utilization
     test_catchall_redirect
+    test_gotenberg
   )
 
   # Permite continuar para mostrar el resumen aunque falle una prueba

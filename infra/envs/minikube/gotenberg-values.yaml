@@ -1,0 +1,3 @@
+# infra/envs/minikube/gotenberg-values.yaml
+route:
+  hostname: gotenberg.127.0.0.1.nip.io

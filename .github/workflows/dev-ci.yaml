@@ -222,6 +222,9 @@ jobs:
         run: |
           source versions.env
           minikube ssh "docker pull traefik:${TRAEFIK_IMAGE_VERSION}; docker pull quay.io/jetstack/cert-manager-controller:${CERT_MANAGER_IMAGE_VERSION}"
+          # Gotenberg: imagen única de ~1GB (Chromium+LibreOffice); sin pre-pull
+          # el --wait de 300s no llega (visto 2026-08-20)
+          minikube ssh "docker pull gotenberg/gotenberg:${GOTENBERG_IMAGE_VERSION}" > /dev/null 2>&1 &
 
           # Langfuse: ~5GB en 6 imágenes. El kubelet las baja EN SERIE dentro
           # del --wait de helm → context deadline exceeded (visto 2026-07-06).

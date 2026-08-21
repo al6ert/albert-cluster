@@ -151,11 +151,19 @@ jobs:
           SECRETS_DIR="$LANGFUSE_SECRETS_DIR" ../../scripts/generate-credentials.sh --component langfuse
           kubectl apply -f "$LANGFUSE_SECRETS_DIR/langfuse-secrets-sealed.yaml"
 
-          # Gotenberg: basic auth de la API (usuario/contraseña fijos en CI para
-          # que el smoke test se autentique); dir temporal para no pisar el
-          # sellado de prod del repo
+          # Gotenberg: basic auth de la API. La credencial se genera al vuelo y
+          # se pasa al smoke test vía $GITHUB_ENV (nada de literales en el repo);
+          # dir temporal para no pisar el sellado de prod del repo
           GOTENBERG_SECRETS_DIR=$(mktemp -d)
-          SECRETS_DIR="$GOTENBERG_SECRETS_DIR" GOTENBERG_USER=ci GOTENBERG_PASSWORD=ci-gotenberg \
+          GOTENBERG_CI_USER=ci
+          GOTENBERG_CI_SECRET=$(openssl rand -hex 16)
+          echo "::add-mask::$GOTENBERG_CI_SECRET"
+          {
+            echo "GOTENBERG_USER=$GOTENBERG_CI_USER"
+            echo "GOTENBERG_PASSWORD=$GOTENBERG_CI_SECRET"
+          } >> "$GITHUB_ENV"
+          SECRETS_DIR="$GOTENBERG_SECRETS_DIR" \
+          GOTENBERG_USER="$GOTENBERG_CI_USER" GOTENBERG_PASSWORD="$GOTENBERG_CI_SECRET" \
             ../../scripts/generate-credentials.sh --component gotenberg
           kubectl apply -f "$GOTENBERG_SECRETS_DIR/gotenberg-basic-auth-sealed.yaml"
 
@@ -205,10 +213,6 @@ jobs:
             kubectl get events -n kube-system
             exit 1
           }
-          echo "::endgroup::"
-
-          echo "::group::Phase 9: Apply ArgoCD ApplicationSet"
-          kubectl apply -f appset-minikube.yaml
           echo "::endgroup::"
 
       - name: Validate Manifests (minikube)
@@ -266,6 +270,20 @@ jobs:
             exit 1
           }
           echo "✅ Certificate wildcard-minikube-tls ready"
+
+      # Se aplica DESPUÉS de helmfile sync a propósito. El ApplicationSet
+      # descubre infra/apps/*/app.yaml en la rama dev remota y ArgoCD (wave 2
+      # del propio sync) renderiza los mismos charts vía el CMP de helmfile,
+      # aplicándolos con semántica kubectl: los objetos nacen sin anotaciones
+      # meta.helm.sh/*. Si Argo se adelanta a helmfile en la wave 3, el
+      # `helm install` de esa app aborta con "invalid ownership metadata"
+      # (visto 2026-08-21 con gotenberg, la última release de la wave 3 y por
+      # tanto la que más ventana le da a Argo). Aplicándolo aquí, helmfile ya
+      # ha sellado la propiedad Helm y Argo adopta los objetos sin conflicto.
+      - name: Apply ArgoCD ApplicationSet
+        run: |
+          cd infra/bootstrap
+          kubectl apply -f appset-minikube.yaml
 
       - name: Debug Gotenberg if deployment fails
         if: failure()
@@ -351,7 +369,9 @@ jobs:
       - name: Enhanced smoke tests
         run: |
           chmod +x tests/smoke.sh
-          WAIT_TIMEOUT=300s GOTENBERG_USER=ci GOTENBERG_PASSWORD=ci-gotenberg ./tests/smoke.sh
+          # GOTENBERG_USER/GOTENBERG_PASSWORD llegan del step de sealed secrets
+          # (exportados a $GITHUB_ENV)
+          WAIT_TIMEOUT=300s ./tests/smoke.sh
 
       - name: Cleanup Minikube
         if: always()

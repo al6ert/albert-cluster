@@ -189,15 +189,6 @@ EOF
 
     wait_for_sealed_secrets
 
-    echo "::group::Phase 3: ArgoCD Applications (optional for local)"
-    if [[ "${DEPLOY_ARGOCD_APPS:-true}" == "true" ]]; then
-        kubectl apply -f appset-minikube.yaml --validate=false
-        echo "✅ ArgoCD ApplicationSet applied"
-    else
-        echo "⚠️ Skipping ArgoCD applications (DEPLOY_ARGOCD_APPS=false)"
-    fi
-    echo "::endgroup::"
-
     echo "✅ Bootstrap phase completed"
 }
 
@@ -250,6 +241,21 @@ deploy_applications() {
         echo "⚠️ Some deployments not ready within timeout, checking individual status..."
         kubectl get deployments -A | grep -E "(0/|False)"
     }
+
+    # ArgoCD DESPUÉS del sync a propósito: el ApplicationSet descubre
+    # infra/apps/*/app.yaml en la rama dev remota y ArgoCD renderiza los mismos
+    # charts vía el CMP de helmfile, aplicándolos con semántica kubectl (sin
+    # anotaciones meta.helm.sh/*). Si Argo se adelanta, el helm install de esa
+    # app aborta con "invalid ownership metadata" (visto 2026-08-21 en dev-ci
+    # con gotenberg). Aquí helmfile ya ha sellado la propiedad y Argo adopta.
+    echo "::group::ArgoCD ApplicationSet (optional for local)"
+    if [[ "${DEPLOY_ARGOCD_APPS:-true}" == "true" ]]; then
+        kubectl apply -f "${SCRIPT_DIR}/infra/bootstrap/appset-minikube.yaml" --validate=false
+        echo "✅ ArgoCD ApplicationSet applied"
+    else
+        echo "⚠️ Skipping ArgoCD applications (DEPLOY_ARGOCD_APPS=false)"
+    fi
+    echo "::endgroup::"
 
     echo "✅ Application deployment completed"
 }

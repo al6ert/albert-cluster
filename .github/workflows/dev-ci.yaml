@@ -215,10 +215,6 @@ jobs:
           }
           echo "::endgroup::"
 
-          echo "::group::Phase 9: Apply ArgoCD ApplicationSet"
-          kubectl apply -f appset-minikube.yaml
-          echo "::endgroup::"
-
       - name: Validate Manifests (minikube)
         uses: ./.github/actions/validate-manifests
         with:
@@ -274,6 +270,20 @@ jobs:
             exit 1
           }
           echo "✅ Certificate wildcard-minikube-tls ready"
+
+      # Se aplica DESPUÉS de helmfile sync a propósito. El ApplicationSet
+      # descubre infra/apps/*/app.yaml en la rama dev remota y ArgoCD (wave 2
+      # del propio sync) renderiza los mismos charts vía el CMP de helmfile,
+      # aplicándolos con semántica kubectl: los objetos nacen sin anotaciones
+      # meta.helm.sh/*. Si Argo se adelanta a helmfile en la wave 3, el
+      # `helm install` de esa app aborta con "invalid ownership metadata"
+      # (visto 2026-08-21 con gotenberg, la última release de la wave 3 y por
+      # tanto la que más ventana le da a Argo). Aplicándolo aquí, helmfile ya
+      # ha sellado la propiedad Helm y Argo adopta los objetos sin conflicto.
+      - name: Apply ArgoCD ApplicationSet
+        run: |
+          cd infra/bootstrap
+          kubectl apply -f appset-minikube.yaml
 
       - name: Debug Gotenberg if deployment fails
         if: failure()

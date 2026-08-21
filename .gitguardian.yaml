@@ -1,0 +1,22 @@
+# Configuración de ggshield (escaneos locales / pre-commit / CI).
+# Nota: la app de GitGuardian en GitHub NO lee este fichero; las alertas del
+# dashboard se cierran allí (falso positivo) o con una exclusión custom.
+version: 2
+
+secret:
+  ignored-matches:
+    # Contraseña dummy del basic auth de Gotenberg en dev-ci (commit 4a1d2f9).
+    # Era efímera: se sellaba contra el sealed-secrets del minikube del runner y
+    # moría con el job. Ya no existe en HEAD (se genera con `openssl rand`),
+    # pero sigue en el historial y dispara en escaneos completos del repo.
+    - name: gotenberg dev-ci basic auth (dummy, histórico)
+      match: 23602d0a875acdbe85882a24edcf08ce33693aa637a8e7d37f57c2e6eb0a1644
+
+    # Contraseña dummy de Grafana en dev-ci (mismo caso: cluster efímero de CI).
+    - name: grafana admin dev-ci (dummy)
+      match: 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+
+  ignored-paths:
+    # Blobs cifrados de SealedSecrets: no son secretos en claro, pero su entropía
+    # dispara detectores genéricos.
+    - infra/bootstrap/secrets/**

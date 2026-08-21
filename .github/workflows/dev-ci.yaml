@@ -151,11 +151,19 @@ jobs:
           SECRETS_DIR="$LANGFUSE_SECRETS_DIR" ../../scripts/generate-credentials.sh --component langfuse
           kubectl apply -f "$LANGFUSE_SECRETS_DIR/langfuse-secrets-sealed.yaml"
 
-          # Gotenberg: basic auth de la API (usuario/contraseña fijos en CI para
-          # que el smoke test se autentique); dir temporal para no pisar el
-          # sellado de prod del repo
+          # Gotenberg: basic auth de la API. La credencial se genera al vuelo y
+          # se pasa al smoke test vía $GITHUB_ENV (nada de literales en el repo);
+          # dir temporal para no pisar el sellado de prod del repo
           GOTENBERG_SECRETS_DIR=$(mktemp -d)
-          SECRETS_DIR="$GOTENBERG_SECRETS_DIR" GOTENBERG_USER=ci GOTENBERG_PASSWORD=ci-gotenberg \
+          GOTENBERG_CI_USER=ci
+          GOTENBERG_CI_SECRET=$(openssl rand -hex 16)
+          echo "::add-mask::$GOTENBERG_CI_SECRET"
+          {
+            echo "GOTENBERG_USER=$GOTENBERG_CI_USER"
+            echo "GOTENBERG_PASSWORD=$GOTENBERG_CI_SECRET"
+          } >> "$GITHUB_ENV"
+          SECRETS_DIR="$GOTENBERG_SECRETS_DIR" \
+          GOTENBERG_USER="$GOTENBERG_CI_USER" GOTENBERG_PASSWORD="$GOTENBERG_CI_SECRET" \
             ../../scripts/generate-credentials.sh --component gotenberg
           kubectl apply -f "$GOTENBERG_SECRETS_DIR/gotenberg-basic-auth-sealed.yaml"
 
@@ -351,7 +359,9 @@ jobs:
       - name: Enhanced smoke tests
         run: |
           chmod +x tests/smoke.sh
-          WAIT_TIMEOUT=300s GOTENBERG_USER=ci GOTENBERG_PASSWORD=ci-gotenberg ./tests/smoke.sh
+          # GOTENBERG_USER/GOTENBERG_PASSWORD llegan del step de sealed secrets
+          # (exportados a $GITHUB_ENV)
+          WAIT_TIMEOUT=300s ./tests/smoke.sh
 
       - name: Cleanup Minikube
         if: always()
